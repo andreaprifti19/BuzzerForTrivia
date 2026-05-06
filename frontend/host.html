@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuizBuzz — Host Panel</title>
+  <style>
+    :root {
+      --bg:      #0d0d0d;
+      --card:    #161616;
+      --border:  #2a2a2a;
+      --text:    #d4d4d4;
+      --muted:   #666;
+      --green:   #22c55e;
+      --amber:   #f59e0b;
+      --red:     #ef4444;
+      --blue:    #3b82f6;
+      --purple:  #a855f7;
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── Password gate ─────────────────────────────────── */
+    #gate {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 1rem;
+    }
+
+    #gate h1 { font-size: 1.4rem; color: var(--green); letter-spacing: .1em; }
+    #gate p  { color: var(--muted); font-size: .85rem; }
+
+    .gate-form {
+      display: flex;
+      flex-direction: column;
+      gap: .6rem;
+      width: 280px;
+    }
+
+    .gate-form label { font-size: .75rem; color: var(--muted); letter-spacing: .15em; text-transform: uppercase; }
+
+    .gate-form input {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 1rem;
+      padding: .6rem .8rem;
+      outline: none;
+      width: 100%;
+      letter-spacing: .15em;
+      transition: border-color .15s;
+    }
+    .gate-form input:focus { border-color: var(--green); }
+
+    #gate-error { color: var(--red); font-size: .82rem; min-height: 1em; }
+
+    /* ── Main panel ────────────────────────────────────── */
+    #panel { display: none; flex-direction: column; min-height: 100vh; }
+
+    /* Top bar */
+    .topbar {
+      background: #111;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: .6rem 1.2rem;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .topbar-title { color: var(--green); font-size: 1rem; letter-spacing: .12em; }
+
+    .ws-pill {
+      display: flex;
+      align-items: center;
+      gap: .45rem;
+      font-size: .78rem;
+      color: var(--muted);
+    }
+    .ws-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background .3s;
+    }
+    .ws-dot.on  { background: var(--green); }
+    .ws-dot.off { background: var(--red); }
+
+    /* Grid layout */
+    .grid {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      grid-template-rows: auto auto;
+      gap: 0;
+      flex: 1;
+    }
+
+    /* Panels */
+    .panel {
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 1.2rem;
+    }
+    .panel:last-child { border-right: none; }
+    .panel-full { grid-column: 1 / -1; border-right: none; }
+
+    .panel-title {
+      font-size: .7rem;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: .9rem;
+      padding-bottom: .4rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Shared controls ───────────────────────────────── */
+    .btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: .82rem;
+      padding: .45rem .9rem;
+      transition: background .12s, border-color .12s, color .12s;
+      letter-spacing: .05em;
+    }
+    .btn:hover:not(:disabled) { background: #222; border-color: #444; }
+    .btn:active:not(:disabled) { background: #2a2a2a; }
+    .btn:disabled { opacity: .35; cursor: not-allowed; }
+
+    .btn-green  { border-color: var(--green);  color: var(--green); }
+    .btn-green:hover:not(:disabled)  { background: rgba(34,197,94,.12); }
+    .btn-amber  { border-color: var(--amber);  color: var(--amber); }
+    .btn-amber:hover:not(:disabled)  { background: rgba(245,158,11,.12); }
+    .btn-red    { border-color: var(--red);    color: var(--red); }
+    .btn-red:hover:not(:disabled)    { background: rgba(239,68,68,.12); }
+    .btn-blue   { border-color: var(--blue);   color: var(--blue); }
+    .btn-blue:hover:not(:disabled)   { background: rgba(59,130,246,.12); }
+    .btn-purple { border-color: var(--purple); color: var(--purple); }
+    .btn-purple:hover:not(:disabled) { background: rgba(168,85,247,.12); }
+
+    .btn-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+    /* ── Buzzer list ───────────────────────────────────── */
+    #buzzer-list { display: flex; flex-direction: column; gap: .5rem; min-height: 80px; }
+
+    .buzzer-row {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      padding: .4rem .6rem;
+      background: #111;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      animation: fadeIn .25s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+    .buzzer-indicator {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+    }
+
+    .buzzer-id { color: var(--muted); font-size: .78rem; min-width: 4.5rem; }
+
+    .buzzer-name-input {
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid transparent;
+      color: var(--text);
+      font-family: inherit;
+      font-size: .85rem;
+      outline: none;
+      flex: 1;
+      transition: border-color .15s;
+    }
+    .buzzer-name-input:focus { border-color: var(--green); }
+
+    .no-buzzers { color: var(--muted); font-size: .82rem; padding: .5rem 0; }
+
+    /* ── Round control ─────────────────────────────────── */
+    .buzz-result-box {
+      margin-top: .9rem;
+      padding: .7rem .9rem;
+      background: #111;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: .85rem;
+      min-height: 2.6rem;
+      line-height: 1.5;
+    }
+    .buzz-result-box.winner { border-color: var(--amber); color: var(--amber); }
+    .buzz-result-box.idle   { color: var(--muted); }
+
+    /* ── Category vote ─────────────────────────────────── */
+    .cat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .45rem;
+      margin-bottom: .9rem;
+    }
+
+    .cat-input-wrap { display: flex; align-items: center; gap: .4rem; }
+
+    .cat-label {
+      font-size: .72rem;
+      color: var(--muted);
+      min-width: 1.2rem;
+      text-align: center;
+    }
+
+    .cat-input {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: .82rem;
+      padding: .35rem .55rem;
+      outline: none;
+      width: 100%;
+      transition: border-color .15s;
+    }
+    .cat-input:focus { border-color: var(--amber); }
+
+    .vote-tally {
+      display: flex;
+      gap: .5rem;
+      margin-top: .75rem;
+      flex-wrap: wrap;
+    }
+
+    .tally-chip {
+      background: #111;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: .3rem .7rem;
+      font-size: .82rem;
+      min-width: 4rem;
+      text-align: center;
+      transition: border-color .3s, color .3s;
+    }
+    .tally-chip.leading { border-color: var(--amber); color: var(--amber); }
+    .tally-chip .tally-opt { color: var(--muted); font-size: .7rem; }
+
+    .vote-status { font-size: .78rem; color: var(--muted); margin-top: .55rem; }
+    .vote-status.active { color: var(--amber); }
+
+    /* ── Manual category ───────────────────────────────── */
+    .manual-row {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      flex-wrap: wrap;
+    }
+
+    .cat-select {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: .82rem;
+      padding: .38rem .55rem;
+      outline: none;
+      flex: 1;
+      min-width: 140px;
+      cursor: pointer;
+    }
+    .cat-select:focus { border-color: var(--blue); }
+
+    /* ── Event log ─────────────────────────────────────── */
+    #event-log {
+      background: #0a0a0a;
+      border-top: 1px solid var(--border);
+      font-size: .78rem;
+      height: 140px;
+      overflow-y: auto;
+      padding: .6rem 1.2rem;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      gap: .18rem;
+    }
+
+    .log-line { line-height: 1.5; }
+    .log-line .ts   { color: #444; margin-right: .6rem; user-select: none; }
+    .log-line.green { color: var(--green); }
+    .log-line.amber { color: var(--amber); }
+    .log-line.red   { color: var(--red); }
+    .log-line.blue  { color: var(--blue); }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════ PASSWORD GATE ═══════════════════════ -->
+<div id="gate">
+  <h1>// HOST PANEL</h1>
+  <p>QuizBuzz control interface</p>
+  <form class="gate-form" id="gate-form">
+    <label for="pw-input">Password</label>
+    <input type="password" id="pw-input" autocomplete="current-password" placeholder="••••••••">
+    <div id="gate-error"></div>
+    <button type="submit" class="btn btn-green">UNLOCK</button>
+  </form>
+</div>
+
+<!-- ═══════════════════════ MAIN PANEL ═══════════════════════ -->
+<div id="panel">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <span class="topbar-title">// QUIZBUZZ HOST PANEL</span>
+    <div style="display:flex;align-items:center;gap:1.2rem;">
+      <span id="buzzer-count" style="font-size:.78rem;color:var(--muted);">0 buzzers</span>
+      <div class="ws-pill">
+        <div class="ws-dot" id="ws-dot"></div>
+        <span id="ws-label">Disconnected</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main grid -->
+  <div class="grid">
+
+    <!-- Left: Buzzers -->
+    <div class="panel">
+      <div class="panel-title">Connected Buzzers</div>
+      <div id="buzzer-list">
+        <div class="no-buzzers" id="no-buzzers-msg">No buzzers connected</div>
+      </div>
+    </div>
+
+    <!-- Right top: Round control -->
+    <div class="panel">
+      <div class="panel-title">Round Control</div>
+      <div class="btn-row">
+        <button class="btn btn-green" id="btn-start-round">▶ Start Round</button>
+        <button class="btn btn-amber" id="btn-next-q">⇒ Next Question</button>
+        <button class="btn btn-red"   id="btn-reset-round">↺ Reset Round</button>
+      </div>
+      <div class="buzz-result-box idle" id="buzz-result">Waiting for buzz-in…</div>
+    </div>
+
+    <!-- Left bottom: Category vote -->
+    <div class="panel">
+      <div class="panel-title">Category Vote</div>
+
+      <div class="cat-grid">
+        <div class="cat-input-wrap">
+          <span class="cat-label" style="color:#ff6b35;">A</span>
+          <input class="cat-input" id="cat-a" type="text" value="Science">
+        </div>
+        <div class="cat-input-wrap">
+          <span class="cat-label" style="color:#00b4d8;">B</span>
+          <input class="cat-input" id="cat-b" type="text" value="History">
+        </div>
+        <div class="cat-input-wrap">
+          <span class="cat-label" style="color:#06d6a0;">C</span>
+          <input class="cat-input" id="cat-c" type="text" value="Sports">
+        </div>
+        <div class="cat-input-wrap">
+          <span class="cat-label" style="color:#9b5de5;">D</span>
+          <input class="cat-input" id="cat-d" type="text" value="Music">
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-amber" id="btn-start-vote">⚡ Start Vote</button>
+        <button class="btn"           id="btn-end-vote" disabled>■ End Vote</button>
+      </div>
+
+      <div class="vote-tally" id="vote-tally">
+        <div class="tally-chip" id="tally-a"><div class="tally-opt">A</div><div id="tally-a-val">0</div></div>
+        <div class="tally-chip" id="tally-b"><div class="tally-opt">B</div><div id="tally-b-val">0</div></div>
+        <div class="tally-chip" id="tally-c"><div class="tally-opt">C</div><div id="tally-c-val">0</div></div>
+        <div class="tally-chip" id="tally-d"><div class="tally-opt">D</div><div id="tally-d-val">0</div></div>
+      </div>
+      <div class="vote-status" id="vote-status">—</div>
+    </div>
+
+    <!-- Right bottom: Manual category -->
+    <div class="panel">
+      <div class="panel-title">Manual Category Select</div>
+      <div class="manual-row">
+        <select class="cat-select" id="cat-select">
+          <option>Science</option>
+          <option>History</option>
+          <option>Sports</option>
+          <option>Music</option>
+          <option>Geography</option>
+          <option>Entertainment</option>
+          <option>Technology</option>
+          <option>Art & Literature</option>
+        </select>
+        <button class="btn btn-blue" id="btn-set-cat">Set Category</button>
+      </div>
+      <div style="margin-top:.9rem;font-size:.78rem;color:var(--muted);">
+        Active category: <span id="active-category" style="color:var(--text);">—</span>
+      </div>
+    </div>
+
+  </div><!-- /grid -->
+
+  <!-- Event log -->
+  <div id="event-log"></div>
+
+</div><!-- /panel -->
+
+<script>
+  // ─────────────────────────────────────────────────────────────
+  // CONFIG
+  // ─────────────────────────────────────────────────────────────
+  const WS_URL  = "ws://192.168.10.168:8080";
+  const PASSWORD = "buzz2024";
+
+  // ─────────────────────────────────────────────────────────────
+  // STATE
+  // ─────────────────────────────────────────────────────────────
+  let socket    = null;
+  let players   = {};    // { id: { name } }
+  let voteActive = false;
+
+  // ─────────────────────────────────────────────────────────────
+  // PASSWORD GATE
+  // ─────────────────────────────────────────────────────────────
+  document.getElementById("gate-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const val = document.getElementById("pw-input").value;
+    if (val === PASSWORD) {
+      document.getElementById("gate").style.display   = "none";
+      document.getElementById("panel").style.display  = "flex";
+      connectWS();
+    } else {
+      const err = document.getElementById("gate-error");
+      err.textContent = "Incorrect password.";
+      document.getElementById("pw-input").value = "";
+      document.getElementById("pw-input").focus();
+      setTimeout(() => { err.textContent = ""; }, 2000);
+    }
+  });
+
+  document.getElementById("pw-input").focus();
+
+  // ─────────────────────────────────────────────────────────────
+  // LOGGING
+  // ─────────────────────────────────────────────────────────────
+  function addLog(text, cls = "") {
+    const log  = document.getElementById("event-log");
+    const line = document.createElement("div");
+    const now  = new Date();
+    const ts   = now.toTimeString().slice(0, 8);
+    line.className = "log-line " + cls;
+    line.innerHTML = `<span class="ts">${ts}</span>${text}`;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // WEBSOCKET
+  // ─────────────────────────────────────────────────────────────
+  function connectWS() {
+    setWsStatus("connecting");
+    socket = new WebSocket(WS_URL);
+
+    socket.addEventListener("open", () => {
+      socket.send(JSON.stringify({ type: "host" }));
+      setWsStatus("on");
+      addLog("Connected to server.", "green");
+    });
+
+    socket.addEventListener("message", ({ data }) => {
+      let msg;
+      try { msg = JSON.parse(data); } catch { return; }
+      handleMessage(msg);
+    });
+
+    socket.addEventListener("close", () => {
+      setWsStatus("off");
+      addLog("Disconnected from server.", "red");
+      setTimeout(connectWS, 3000); // auto-reconnect
+    });
+
+    socket.addEventListener("error", () => {
+      setWsStatus("off");
+    });
+  }
+
+  function send(obj) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(obj));
+    }
+  }
+
+  function setWsStatus(state) {
+    const dot   = document.getElementById("ws-dot");
+    const label = document.getElementById("ws-label");
+    dot.className = "ws-dot " + (state === "on" ? "on" : state === "off" ? "off" : "");
+    label.textContent = state === "on" ? "Connected" : state === "off" ? "Disconnected" : "Connecting…";
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // MESSAGE HANDLER
+  // ─────────────────────────────────────────────────────────────
+  function handleMessage(msg) {
+    switch (msg.type) {
+
+      case "state_sync":
+        // Restore vote counts if we joined mid-vote
+        if (msg.voteMode) {
+          voteActive = true;
+          updateVoteTally(msg.voteCounts || {});
+          setVoteUI(true);
+        }
+        break;
+
+      case "player_joined":
+        addPlayer(msg.buzzer_id);
+        break;
+
+      case "player_left":
+        removePlayer(msg.buzzer_id);
+        break;
+
+      case "buzz": {
+        const name = playerName(msg.buzzer_id);
+        const box  = document.getElementById("buzz-result");
+        box.className   = "buzz-result-box winner";
+        box.textContent = `★ ${name}  (t=${msg.timestamp} ms)`;
+        addLog(`Buzz winner: ${name}  [buzzer ${msg.buzzer_id}, t=${msg.timestamp}]`, "amber");
+        break;
+      }
+
+      case "round_reset":
+        setBuzzResultIdle();
+        break;
+
+      case "vote_start":
+        voteActive = true;
+        updateVoteTally({ A: 0, B: 0, C: 0, D: 0 });
+        setVoteUI(true);
+        addLog(`Vote started: ${msg.categories.join(" / ")}`, "amber");
+        break;
+
+      case "vote_update":
+        updateVoteTally(msg.counts);
+        addLog(`Vote: Buzzer ${msg.buzzer_id} → ${msg.choice}`, "blue");
+        break;
+
+      case "vote_end":
+        voteActive = false;
+        updateVoteTally(msg.counts);
+        setVoteUI(false);
+        addLog(`Vote ended. ${summariseCounts(msg.counts)}`, "amber");
+        break;
+
+      case "category_selected":
+        document.getElementById("active-category").textContent = msg.category;
+        addLog(`Category set: ${msg.category}`, "blue");
+        break;
+
+      case "next_question":
+        setBuzzResultIdle();
+        addLog("Next question.", "green");
+        break;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // PLAYER MANAGEMENT
+  // ─────────────────────────────────────────────────────────────
+  function addPlayer(id) {
+    if (players[id]) return;
+    players[id] = { name: `Buzzer ${id}` };
+    renderBuzzerList();
+    addLog(`Buzzer ${id} connected.`, "green");
+  }
+
+  function removePlayer(id) {
+    delete players[id];
+    renderBuzzerList();
+    addLog(`Buzzer ${id} disconnected.`, "red");
+  }
+
+  function playerName(id) {
+    return players[id]?.name || `Buzzer ${id}`;
+  }
+
+  function renderBuzzerList() {
+    const list  = document.getElementById("buzzer-list");
+    const empty = document.getElementById("no-buzzers-msg");
+    const ids   = Object.keys(players);
+
+    empty.style.display = ids.length ? "none" : "";
+    document.getElementById("buzzer-count").textContent = `${ids.length} buzzer${ids.length !== 1 ? "s" : ""}`;
+
+    // Remove stale rows
+    list.querySelectorAll(".buzzer-row").forEach(r => {
+      if (!players[r.dataset.id]) r.remove();
+    });
+
+    ids.forEach(id => {
+      if (list.querySelector(`.buzzer-row[data-id="${id}"]`)) return;
+      const row = document.createElement("div");
+      row.className = "buzzer-row";
+      row.dataset.id = id;
+      row.innerHTML = `
+        <div class="buzzer-indicator"></div>
+        <span class="buzzer-id">#${id}</span>
+        <input class="buzzer-name-input" type="text" value="${players[id].name}" placeholder="Player name">
+      `;
+      row.querySelector("input").addEventListener("input", e => {
+        players[id].name = e.target.value.trim() || `Buzzer ${id}`;
+      });
+      list.appendChild(row);
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // VOTE UI
+  // ─────────────────────────────────────────────────────────────
+  function setVoteUI(active) {
+    document.getElementById("btn-start-vote").disabled = active;
+    document.getElementById("btn-end-vote").disabled   = !active;
+    const status = document.getElementById("vote-status");
+    if (active) {
+      status.className   = "vote-status active";
+      status.textContent = "⚡ Vote in progress — players press 1/2/3/4 times for A/B/C/D";
+    } else {
+      status.className   = "vote-status";
+      status.textContent = "—";
+    }
+  }
+
+  function updateVoteTally(counts = {}) {
+    const opts = ["A","B","C","D"];
+    const values = opts.map(o => counts[o] ?? 0);
+    const max    = Math.max(...values, 0);
+
+    opts.forEach((opt, i) => {
+      const chip = document.getElementById(`tally-${opt.toLowerCase()}`);
+      const val  = document.getElementById(`tally-${opt.toLowerCase()}-val`);
+      val.textContent = values[i];
+      chip.classList.toggle("leading", max > 0 && values[i] === max);
+    });
+  }
+
+  function summariseCounts(counts) {
+    return Object.entries(counts).map(([k,v]) => `${k}:${v}`).join("  ");
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // ROUND CONTROL UI
+  // ─────────────────────────────────────────────────────────────
+  function setBuzzResultIdle() {
+    const box = document.getElementById("buzz-result");
+    box.className   = "buzz-result-box idle";
+    box.textContent = "Waiting for buzz-in…";
+  }
+
+  // Keep category select options in sync with vote inputs
+  function syncCategorySelect() {
+    const names = [
+      document.getElementById("cat-a").value || "Category A",
+      document.getElementById("cat-b").value || "Category B",
+      document.getElementById("cat-c").value || "Category C",
+      document.getElementById("cat-d").value || "Category D",
+    ];
+    const sel = document.getElementById("cat-select");
+    const cur = sel.value;
+    // Prepend vote categories as the first four options; keep the rest
+    const extras = Array.from(sel.options).slice(4).map(o => o.value);
+    sel.innerHTML = [...names, ...extras].map(n => `<option>${n}</option>`).join("");
+    // Restore previous selection if still present
+    sel.value = [...names, ...extras].includes(cur) ? cur : names[0];
+  }
+
+  ["cat-a","cat-b","cat-c","cat-d"].forEach(id => {
+    document.getElementById(id).addEventListener("input", syncCategorySelect);
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // BUTTON HANDLERS
+  // ─────────────────────────────────────────────────────────────
+  document.getElementById("btn-start-round").addEventListener("click", () => {
+    send({ type: "start_round" });
+    setBuzzResultIdle();
+    addLog("Round started.", "green");
+  });
+
+  document.getElementById("btn-reset-round").addEventListener("click", () => {
+    send({ type: "reset_round" });
+    setBuzzResultIdle();
+    addLog("Round reset.", "amber");
+  });
+
+  document.getElementById("btn-next-q").addEventListener("click", () => {
+    send({ type: "next_question" });
+    addLog("Advanced to next question.", "green");
+  });
+
+  document.getElementById("btn-start-vote").addEventListener("click", () => {
+    const categories = [
+      document.getElementById("cat-a").value || "Category A",
+      document.getElementById("cat-b").value || "Category B",
+      document.getElementById("cat-c").value || "Category C",
+      document.getElementById("cat-d").value || "Category D",
+    ];
+    send({ type: "start_vote", categories });
+  });
+
+  document.getElementById("btn-end-vote").addEventListener("click", () => {
+    send({ type: "end_vote" });
+  });
+
+  document.getElementById("btn-set-cat").addEventListener("click", () => {
+    const category = document.getElementById("cat-select").value;
+    send({ type: "set_category", category });
+  });
+</script>
+</body>
+</html>

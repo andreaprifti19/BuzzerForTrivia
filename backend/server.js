@@ -1,105 +1,216 @@
 const { WebSocketServer } = require("ws");
 
-const PORT = 8080;
-const ROUND_RESET_DELAY_MS = 5000;
+const PORT               = 8080;
+const ROUND_RESET_MS     = 5000;
+const VOTE_DEBOUNCE_MS   = 1500; // ms of silence after last press → finalise vote
 
 const wss = new WebSocketServer({ port: PORT });
 
-// Tracked client sets
-const browsers = new Set();
+const browsers = new Set(); // index.html + host.html clients
 const buzzers  = new Set();
 
-let roundWinner = null;
-let resetTimer  = null;
+let roundWinner  = null;
+let resetTimer   = null;
 
-function broadcast(browsers, obj) {
+// Vote state
+let voteMode     = false;
+let voteCategories = [];
+let voteCounts   = {};          // { A: n, B: n, C: n, D: n }
+let voterDone    = new Set();   // buzzer_ids that have already cast a vote
+let pressBuffers = {};          // { buzzer_id: { count, timer } }
+
+// ─────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────
+function broadcast(clients, obj) {
   const payload = JSON.stringify(obj);
-  for (const client of browsers) {
-    if (client.readyState === client.OPEN) client.send(payload);
+  for (const c of clients) {
+    if (c.readyState === c.OPEN) c.send(payload);
   }
 }
 
-function resetRound() {
+function log(...args) {
+  console.log(new Date().toTimeString().slice(0, 8), ...args);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Round management
+// ─────────────────────────────────────────────────────────────
+function resetRound(source = "auto") {
   roundWinner = null;
-  resetTimer  = null;
-  console.log("--- Round reset. Ready for next press. ---");
+  if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
+  log(`Round reset (${source}).`);
   broadcast(browsers, { type: "round_reset" });
 }
 
-function scheduleReset() {
+function scheduleAutoReset() {
   if (resetTimer) return;
-  resetTimer = setTimeout(resetRound, ROUND_RESET_DELAY_MS);
+  resetTimer = setTimeout(() => resetRound("auto"), ROUND_RESET_MS);
 }
 
+// ─────────────────────────────────────────────────────────────
+// Category vote
+// ─────────────────────────────────────────────────────────────
+function startVote(cats) {
+  voteMode       = true;
+  voteCategories = cats;
+  voteCounts     = { A: 0, B: 0, C: 0, D: 0 };
+  voterDone      = new Set();
+  pressBuffers   = {};
+  roundWinner    = null; // unlock buzzers for vote presses
+  log("Category vote started:", cats);
+  broadcast(browsers, { type: "vote_start", categories: cats, counts: voteCounts });
+}
+
+function finaliseVote(buzzer_id) {
+  const buf = pressBuffers[buzzer_id];
+  if (!buf) return;
+  const count = buf.count;
+  delete pressBuffers[buzzer_id];
+
+  const opts   = ["A", "B", "C", "D"];
+  const choice = opts[count - 1]; // 1 press=A, 2=B, 3=C, 4=D
+  if (!choice || voterDone.has(buzzer_id)) return;
+
+  voterDone.add(buzzer_id);
+  voteCounts[choice]++;
+  log(`Buzzer ${buzzer_id} voted ${choice} (${count} press(es))`);
+  broadcast(browsers, { type: "vote_update", buzzer_id, choice, counts: { ...voteCounts } });
+}
+
+function endVote() {
+  voteMode = false;
+  // Cancel any pending debounce timers and finalise early
+  for (const id of Object.keys(pressBuffers)) {
+    if (pressBuffers[id].timer) clearTimeout(pressBuffers[id].timer);
+    finaliseVote(Number(id));
+  }
+  pressBuffers = {};
+  log("Vote ended. Results:", voteCounts);
+  broadcast(browsers, { type: "vote_end", counts: { ...voteCounts } });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Host message handler
+// ─────────────────────────────────────────────────────────────
+function handleHostMessage(msg) {
+  switch (msg.type) {
+    case "start_round":
+      resetRound("host");
+      voteMode = false;
+      break;
+
+    case "reset_round":
+      resetRound("host");
+      break;
+
+    case "next_question":
+      resetRound("host");
+      broadcast(browsers, { type: "next_question" });
+      break;
+
+    case "start_vote":
+      startVote(msg.categories || ["Category A", "Category B", "Category C", "Category D"]);
+      break;
+
+    case "end_vote":
+      endVote();
+      break;
+
+    case "set_category":
+      log("Category selected:", msg.category);
+      broadcast(browsers, { type: "category_selected", category: msg.category });
+      break;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Buzzer press handler
+// ─────────────────────────────────────────────────────────────
+function handleBuzzerPress(buzzer_id, timestamp) {
+  if (voteMode) {
+    if (voterDone.has(buzzer_id)) return; // already cast vote
+    if (!pressBuffers[buzzer_id]) pressBuffers[buzzer_id] = { count: 0, timer: null };
+    const buf = pressBuffers[buzzer_id];
+    buf.count++;
+    if (buf.timer) clearTimeout(buf.timer);
+    buf.timer = setTimeout(() => finaliseVote(buzzer_id), VOTE_DEBOUNCE_MS);
+    log(`Buzzer ${buzzer_id} press #${buf.count} (vote mode)`);
+    return;
+  }
+
+  if (roundWinner !== null) {
+    log(`Buzzer ${buzzer_id} pressed — round already won by ${roundWinner}, ignored.`);
+    return;
+  }
+
+  roundWinner = buzzer_id;
+  log(`*** Winner: Buzzer ${buzzer_id} (t=${timestamp}) ***`);
+  broadcast(browsers, { type: "buzz", buzzer_id, timestamp });
+  scheduleAutoReset();
+}
+
+// ─────────────────────────────────────────────────────────────
+// Connection handler
+// ─────────────────────────────────────────────────────────────
 wss.on("listening", () => {
-  console.log(`Buzzer server listening on ws://localhost:${PORT}`);
+  log(`Server listening on ws://localhost:${PORT}`);
 });
 
 wss.on("connection", (ws) => {
-  // Client type is determined by the first message received.
-  // Browsers send { "type": "browser" } (or { "type": "host_join", ... }).
-  // ESP32 buzzers send { "buzzer_id": N, "timestamp": N }.
   let clientType = null; // "browser" | "buzzer"
+  let buzzerId   = null;
 
   ws.on("message", (data) => {
     let msg;
-    try {
-      msg = JSON.parse(data);
-    } catch {
-      console.warn("Received non-JSON message, ignoring.");
-      return;
-    }
+    try { msg = JSON.parse(data); } catch { return; }
 
-    // ── Identify client on first message ──────────────────────
+    // ── Identify on first message ─────────────────────────────
     if (clientType === null) {
-      if (msg.type === "browser" || msg.type === "host_join") {
+      const BROWSER_TYPES = ["browser", "host_join", "host"];
+      if (BROWSER_TYPES.includes(msg.type)) {
         clientType = "browser";
         browsers.add(ws);
-        console.log(`Browser client connected. (${browsers.size} browser(s), ${buzzers.size} buzzer(s))`);
+        log(`Browser/host connected. (${browsers.size} browser(s), ${buzzers.size} buzzer(s))`);
+        // Send current state so late-joining hosts are in sync
+        ws.send(JSON.stringify({ type: "state_sync", roundWinner, voteMode, voteCounts, voteCategories }));
         return;
-      } else if (msg.buzzer_id !== undefined) {
+      }
+      if (msg.buzzer_id !== undefined) {
         clientType = "buzzer";
+        buzzerId   = msg.buzzer_id;
         buzzers.add(ws);
-        const id = msg.buzzer_id;
-        console.log(`Buzzer ${id} connected. (${browsers.size} browser(s), ${buzzers.size} buzzer(s))`);
-        broadcast(browsers, { type: "player_joined", buzzer_id: id });
-        // Fall through to handle the press if timestamp is present.
+        log(`Buzzer ${buzzerId} connected. (${browsers.size} browser(s), ${buzzers.size} buzzer(s))`);
+        broadcast(browsers, { type: "player_joined", buzzer_id: buzzerId });
+        // First message may also be a press — fall through.
       } else {
-        console.warn("Unrecognised first message, ignoring:", msg);
+        log("Unrecognised first message, ignoring:", msg);
         return;
       }
     }
 
-    // ── Handle buzzer press ───────────────────────────────────
-    if (clientType === "buzzer") {
-      const { buzzer_id, timestamp } = msg;
-      if (buzzer_id === undefined || timestamp === undefined) return;
-
-      if (roundWinner !== null) {
-        console.log(`Buzzer ${buzzer_id} pressed, but round already won by buzzer ${roundWinner}.`);
-        return;
+    // ── Dispatch ──────────────────────────────────────────────
+    if (clientType === "browser") {
+      handleHostMessage(msg);
+    } else if (clientType === "buzzer") {
+      if (msg.buzzer_id !== undefined && msg.timestamp !== undefined) {
+        handleBuzzerPress(msg.buzzer_id, msg.timestamp);
       }
-
-      roundWinner = buzzer_id;
-      console.log(`*** Winner: Buzzer ${buzzer_id} (timestamp: ${timestamp}) ***`);
-      broadcast(browsers, { type: "buzz", buzzer_id, timestamp });
-      scheduleReset();
     }
   });
 
   ws.on("close", () => {
     if (clientType === "browser") {
       browsers.delete(ws);
-      console.log(`Browser client disconnected. (${browsers.size} browser(s))`);
+      log(`Browser/host disconnected. (${browsers.size} browser(s))`);
     } else if (clientType === "buzzer") {
       buzzers.delete(ws);
-      // Recover buzzer_id from the Set isn't possible after close, so we
-      // broadcast with what we know — the frontend handles unknown IDs gracefully.
-      console.log(`A buzzer disconnected. (${buzzers.size} buzzer(s))`);
+      log(`Buzzer ${buzzerId} disconnected. (${buzzers.size} buzzer(s))`);
+      if (buzzerId !== null) {
+        broadcast(browsers, { type: "player_left", buzzer_id: buzzerId });
+      }
     }
   });
 
-  ws.on("error", (err) => {
-    console.error("WebSocket error:", err.message);
-  });
+  ws.on("error", (err) => console.error("WS error:", err.message));
 });
