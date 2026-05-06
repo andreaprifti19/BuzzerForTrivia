@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuizBuzz — Live Trivia</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:           #08001a;
+      --surface:      rgba(255,255,255,0.05);
+      --border:       rgba(255,255,255,0.1);
+      --yellow:       #FFE600;
+      --pink:         #FF006E;
+      --cyan:         #00D4FF;
+      --green:        #00FF88;
+      --ans-a:        #FF6B35;
+      --ans-b:        #00B4D8;
+      --ans-c:        #06D6A0;
+      --ans-d:        #9B5DE5;
+      --text:         #FFFFFF;
+      --muted:        rgba(255,255,255,0.55);
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 15% 50%, rgba(0,212,255,0.07) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 15%, rgba(255,0,110,0.07) 0%, transparent 55%),
+        radial-gradient(ellipse at 50% 85%, rgba(155,93,229,0.07) 0%, transparent 55%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Pages ─────────────────────────────────── */
+    .page { display: none; min-height: 100vh; position: relative; z-index: 1; }
+    .page.active { display: flex; flex-direction: column; }
+    #page-game.active { display: grid !important; }
+
+    /* ── Toast ─────────────────────────────────── */
+    #toasts {
+      position: fixed;
+      top: 1rem; right: 1rem;
+      display: flex; flex-direction: column; gap: .5rem;
+      z-index: 9999; pointer-events: none;
+    }
+    .toast {
+      background: rgba(18,18,28,0.96);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .7rem 1.2rem;
+      font-size: .9rem; font-weight: 700;
+      backdrop-filter: blur(12px);
+      animation: slideIn .3s ease;
+    }
+    .toast.info    { border-left: 3px solid var(--cyan);  }
+    .toast.success { border-left: 3px solid var(--green); }
+    .toast.warn    { border-left: 3px solid var(--yellow);}
+    @keyframes slideIn {
+      from { transform: translateX(110%); opacity: 0; }
+      to   { transform: translateX(0);   opacity: 1; }
+    }
+
+    /* ── Shared components ──────────────────────── */
+    .ws-indicator {
+      display: flex; align-items: center; gap: .5rem;
+      font-size: .82rem; color: var(--muted);
+    }
+    .ws-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #555; transition: background .3s;
+    }
+    .ws-dot.on  { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .ws-dot.off { background: #ff4444; }
+
+    .btn {
+      border: none; border-radius: 12px; cursor: pointer;
+      font-family: 'Fredoka One', cursive; letter-spacing: .04em;
+      transition: transform .12s, box-shadow .2s, opacity .2s;
+    }
+    .btn:hover:not(:disabled) { transform: translateY(-2px); }
+    .btn:active:not(:disabled) { transform: translateY(0); }
+    .btn:disabled { opacity: .3; cursor: not-allowed; }
+
+    /* ═══════════════════════════════════════════════
+       LANDING
+    ═══════════════════════════════════════════════ */
+    #page-landing {
+      align-items: center;
+      justify-content: center;
+      gap: 1.8rem;
+      padding: 2rem;
+    }
+
+    .logo {
+      font-family: 'Fredoka One', cursive;
+      font-size: clamp(4rem, 13vw, 9rem);
+      line-height: 1;
+      background: linear-gradient(135deg, var(--yellow), var(--pink), var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: logoPulse 3s ease-in-out infinite;
+    }
+    @keyframes logoPulse {
+      0%,100% { filter: drop-shadow(0 0 18px rgba(255,230,0,.45)); }
+      50%      { filter: drop-shadow(0 0 38px rgba(255,0,110,.65)) drop-shadow(0 0 70px rgba(0,212,255,.3)); }
+    }
+
+    .tagline {
+      font-size: 1.1rem; font-weight: 700;
+      letter-spacing: .3em; text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .landing-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 2.5rem 3rem;
+      display: flex; flex-direction: column; gap: 1.1rem;
+      min-width: 320px; max-width: 420px; width: 100%;
+      backdrop-filter: blur(20px);
+    }
+
+    .field-label {
+      font-size: .8rem; font-weight: 700;
+      letter-spacing: .22em; text-transform: uppercase;
+      color: var(--cyan);
+    }
+
+    .text-input {
+      background: rgba(255,255,255,.07);
+      border: 2px solid rgba(0,212,255,.3);
+      border-radius: 12px;
+      color: #fff;
+      font-family: 'Nunito', sans-serif;
+      font-size: 1.4rem; font-weight: 700;
+      padding: .75rem 1.2rem;
+      outline: none;
+      text-align: center;
+      letter-spacing: .18em;
+      transition: border-color .2s, box-shadow .2s;
+      width: 100%;
+    }
+    .text-input::placeholder { color: rgba(255,255,255,.28); }
+    .text-input:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 4px rgba(0,212,255,.14);
+    }
+
+    .btn-connect {
+      background: linear-gradient(135deg, var(--pink), #b800e0);
+      color: #fff;
+      font-size: 1.5rem;
+      padding: 1rem;
+      box-shadow: 0 4px 28px rgba(255,0,110,.38);
+    }
+    .btn-connect:hover:not(:disabled) {
+      box-shadow: 0 8px 40px rgba(255,0,110,.6);
+    }
+
+    .status-msg { font-size: .88rem; color: var(--muted); text-align: center; min-height: 1.3em; }
+    .status-msg.err { color: #ff5555; }
+    .status-msg.ok  { color: var(--green); }
+
+    /* ═══════════════════════════════════════════════
+       LOBBY
+    ═══════════════════════════════════════════════ */
+    #page-lobby { padding: 1.8rem; gap: 1.4rem; }
+
+    .lobby-header {
+      display: flex; align-items: center;
+      justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+    }
+
+    .page-title {
+      font-family: 'Fredoka One', cursive;
+      font-size: 2.4rem;
+      background: linear-gradient(90deg, var(--yellow), var(--pink));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .room-badge {
+      background: rgba(0,212,255,.12);
+      border: 1px solid rgba(0,212,255,.35);
+      border-radius: 999px;
+      padding: .35rem 1.1rem;
+      font-weight: 700; font-size: .85rem;
+      color: var(--cyan); letter-spacing: .1em;
+    }
+
+    .buzzer-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 1rem;
+      flex: 1;
+    }
+
+    .buzzer-card {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 18px;
+      padding: 1.5rem;
+      display: flex; flex-direction: column;
+      align-items: center; gap: .9rem;
+      animation: popIn .35s cubic-bezier(.175,.885,.32,1.275) both;
+    }
+    .buzzer-card.on {
+      border-color: var(--green);
+      box-shadow: 0 0 22px rgba(0,255,136,.18);
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(.75); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    .buzzer-emoji { font-size: 2.8rem; line-height: 1; }
+    .buzzer-id-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .2em; color: var(--muted); }
+
+    .name-input {
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 8px;
+      color: #fff;
+      font-family: 'Nunito', sans-serif;
+      font-size: 1rem; font-weight: 700;
+      padding: .38rem .6rem;
+      outline: none; text-align: center; width: 100%;
+      transition: border-color .2s;
+    }
+    .name-input:focus { border-color: var(--yellow); }
+
+    .lobby-empty {
+      grid-column: 1 / -1;
+      text-align: center; padding: 4rem 2rem;
+      color: var(--muted);
+    }
+    .lobby-empty .icon { font-size: 3.5rem; display: block; margin-bottom: 1rem; }
+
+    .lobby-footer { display: flex; justify-content: flex-end; }
+
+    .btn-start {
+      background: linear-gradient(135deg, var(--green), #00b855);
+      color: #000;
+      font-size: 1.35rem;
+      padding: .85rem 2.4rem;
+      box-shadow: 0 4px 28px rgba(0,255,136,.28);
+    }
+    .btn-start:hover:not(:disabled) { box-shadow: 0 8px 38px rgba(0,255,136,.5); }
+
+    /* ═══════════════════════════════════════════════
+       GAME
+    ═══════════════════════════════════════════════ */
+    #page-game {
+      grid-template-rows: auto 1fr auto;
+      grid-template-columns: 1fr 300px;
+      grid-template-areas:
+        "hdr   hdr"
+        "main  board"
+        "ctrl  ctrl";
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .game-hdr {
+      grid-area: hdr;
+      background: rgba(0,0,0,.45);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: .9rem 1.6rem; gap: 1rem;
+    }
+    .game-logo {
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.75rem;
+      background: linear-gradient(90deg, var(--yellow), var(--pink));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .q-counter { font-weight: 700; font-size: .88rem; color: var(--muted); }
+
+    /* Main area */
+    .game-main {
+      grid-area: main;
+      padding: 1.8rem;
+      display: flex; flex-direction: column; gap: 1.4rem;
+      overflow-y: auto;
+    }
+
+    .question-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 1.8rem 2rem;
+    }
+    .q-label {
+      font-size: .75rem; font-weight: 700;
+      letter-spacing: .3em; text-transform: uppercase;
+      color: var(--cyan); margin-bottom: .7rem;
+    }
+    .q-text {
+      font-size: clamp(1.25rem, 2.4vw, 1.85rem);
+      font-weight: 900; line-height: 1.45;
+    }
+
+    .answers-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .ans-btn {
+      background: rgba(255,255,255,.04);
+      border: 2px solid;
+      border-radius: 16px;
+      color: #fff;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 1rem;
+      padding: 1.1rem 1.4rem;
+      font-family: 'Nunito', sans-serif;
+      font-size: 1.02rem; font-weight: 700;
+      text-align: left;
+      transition: transform .14s, background .15s, box-shadow .15s;
+    }
+    .ans-btn:hover { transform: translateY(-2px); }
+    .ans-btn[data-opt="A"] { border-color: var(--ans-a); }
+    .ans-btn[data-opt="A"]:hover { background: rgba(255,107,53,.18); box-shadow: 0 4px 18px rgba(255,107,53,.28); }
+    .ans-btn[data-opt="B"] { border-color: var(--ans-b); }
+    .ans-btn[data-opt="B"]:hover { background: rgba(0,180,216,.18); box-shadow: 0 4px 18px rgba(0,180,216,.28); }
+    .ans-btn[data-opt="C"] { border-color: var(--ans-c); }
+    .ans-btn[data-opt="C"]:hover { background: rgba(6,214,160,.18); box-shadow: 0 4px 18px rgba(6,214,160,.28); }
+    .ans-btn[data-opt="D"] { border-color: var(--ans-d); }
+    .ans-btn[data-opt="D"]:hover { background: rgba(155,93,229,.18); box-shadow: 0 4px 18px rgba(155,93,229,.28); }
+
+    .ans-btn.correct { background: rgba(0,255,136,.22) !important; border-color: var(--green) !important; }
+    .ans-btn.wrong   { background: rgba(255,68,68,.1)  !important; border-color: #ff4444  !important; opacity: .45; }
+
+    .ans-letter {
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.45rem; min-width: 1.8rem; text-align: center;
+    }
+    .ans-btn[data-opt="A"] .ans-letter { color: var(--ans-a); }
+    .ans-btn[data-opt="B"] .ans-letter { color: var(--ans-b); }
+    .ans-btn[data-opt="C"] .ans-letter { color: var(--ans-c); }
+    .ans-btn[data-opt="D"] .ans-letter { color: var(--ans-d); }
+
+    /* Buzz result */
+    .buzz-result {
+      border-radius: 20px; padding: 1.4rem;
+      text-align: center; transition: all .4s;
+    }
+    .buzz-result.idle {
+      background: rgba(255,255,255,.03);
+      border: 2px dashed rgba(255,255,255,.13);
+    }
+    .buzz-result.live {
+      background: linear-gradient(135deg, rgba(255,230,0,.12), rgba(255,0,110,.12));
+      border: 2px solid var(--yellow);
+      box-shadow: 0 0 36px rgba(255,230,0,.28);
+      animation: buzzPop .5s cubic-bezier(.175,.885,.32,1.275);
+    }
+    @keyframes buzzPop {
+      0%  { transform: scale(.82); opacity: 0; }
+      60% { transform: scale(1.05); }
+      100%{ transform: scale(1);   opacity: 1; }
+    }
+    .buzz-idle-text { color: var(--muted); font-weight: 700; }
+    .buzz-label { font-size: .75rem; letter-spacing: .3em; text-transform: uppercase; color: var(--yellow); font-weight: 700; margin-bottom: .35rem; }
+    .buzz-lightning { font-size: 2rem; animation: zap .45s ease; }
+    @keyframes zap {
+      from { transform: rotate(-25deg) scale(1.6); }
+      to   { transform: rotate(0)      scale(1); }
+    }
+    .buzz-name {
+      font-family: 'Fredoka One', cursive;
+      font-size: clamp(1.9rem, 4vw, 2.9rem);
+      background: linear-gradient(90deg, var(--yellow), var(--pink));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .buzz-ts { font-size: .82rem; color: var(--muted); margin-top: .25rem; }
+
+    /* Leaderboard sidebar */
+    .game-board {
+      grid-area: board;
+      background: rgba(0,0,0,.3);
+      border-left: 1px solid var(--border);
+      padding: 1.4rem;
+      display: flex; flex-direction: column; gap: .9rem;
+      overflow-y: auto;
+    }
+    .board-title {
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.35rem; color: var(--yellow);
+      text-align: center; letter-spacing: .05em;
+    }
+    .leaderboard { display: flex; flex-direction: column; gap: .45rem; }
+    .lb-row {
+      background: var(--surface);
+      border-radius: 10px;
+      display: flex; align-items: center; gap: .75rem;
+      padding: .65rem .9rem;
+      transition: background .3s;
+    }
+    .lb-row.gold {
+      background: linear-gradient(90deg, rgba(255,230,0,.14), rgba(255,0,110,.08));
+      border: 1px solid rgba(255,230,0,.28);
+    }
+    .lb-rank { font-family: 'Fredoka One', cursive; font-size: 1.15rem; min-width: 1.5rem; text-align: center; }
+    .lb-name { flex: 1; font-weight: 700; font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lb-score { font-family: 'Fredoka One', cursive; font-size: 1.25rem; color: var(--cyan); }
+    .lb-empty { text-align: center; color: var(--muted); font-size: .88rem; padding: 1rem; }
+
+    /* Controls footer */
+    .game-ctrl {
+      grid-area: ctrl;
+      background: rgba(0,0,0,.42);
+      border-top: 1px solid var(--border);
+      padding: .9rem 1.5rem;
+      display: flex; align-items: center; gap: .85rem; flex-wrap: wrap;
+    }
+    .btn-correct { background: linear-gradient(135deg,#00c853,#00e676); color:#000; font-size:1.05rem; padding:.65rem 1.4rem; box-shadow:0 4px 18px rgba(0,200,83,.3); }
+    .btn-wrong   { background: linear-gradient(135deg,#d50000,#ff1744); color:#fff; font-size:1.05rem; padding:.65rem 1.4rem; box-shadow:0 4px 18px rgba(213,0,0,.3); }
+    .btn-next    { background: linear-gradient(135deg,var(--cyan),#0077ff); color:#fff; font-size:1.05rem; padding:.65rem 1.8rem; box-shadow:0 4px 18px rgba(0,212,255,.3); margin-left: auto; }
+    .btn-exit    { background: rgba(255,255,255,.08); color: var(--muted); font-size:1.05rem; padding:.65rem 1.2rem; }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      #page-game {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr auto auto;
+        grid-template-areas: "hdr" "main" "board" "ctrl";
+      }
+      .game-board { border-left: none; border-top: 1px solid var(--border); max-height: 260px; }
+      .answers-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="toasts"></div>
+
+<!-- ═══════════════════════ LANDING ═══════════════════════ -->
+<div id="page-landing" class="page active">
+  <div class="logo">QuizBuzz</div>
+  <div class="tagline">Live Trivia · Press Fast · Win Big</div>
+
+  <div class="landing-card">
+    <label class="field-label" for="room-input">Room Code</label>
+    <input class="text-input" id="room-input" type="text"
+           placeholder="BUZZ1" maxlength="8" value="BUZZ1" autocomplete="off">
+    <button class="btn btn-connect" id="btn-connect">CONNECT</button>
+    <div class="status-msg" id="connect-status">Enter a room code to begin</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════ LOBBY ═══════════════════════ -->
+<div id="page-lobby" class="page">
+  <div class="lobby-header">
+    <div class="page-title">Waiting Room</div>
+    <div style="display:flex;align-items:center;gap:.9rem;flex-wrap:wrap;">
+      <span class="room-badge" id="lobby-room">ROOM: —</span>
+      <div class="ws-indicator">
+        <div class="ws-dot" id="lobby-dot"></div>
+        <span id="lobby-ws-text">Connecting…</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="buzzer-grid" id="buzzer-grid">
+    <div class="lobby-empty" id="lobby-empty">
+      <span class="icon">🎮</span>
+      Waiting for buzzers to connect…<br>
+      <small style="display:block;margin-top:.5rem;opacity:.45;">ESP32 devices will appear here automatically</small>
+    </div>
+  </div>
+
+  <div class="lobby-footer">
+    <button class="btn btn-start" id="btn-start" disabled>START GAME ▶</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════ GAME ═══════════════════════ -->
+<div id="page-game" class="page">
+
+  <header class="game-hdr">
+    <div class="game-logo">QuizBuzz</div>
+    <div class="q-counter" id="q-counter">Question 1 of 10</div>
+    <div class="ws-indicator">
+      <div class="ws-dot" id="game-dot"></div>
+      <span id="game-ws-text">Disconnected</span>
+    </div>
+  </header>
+
+  <main class="game-main">
+    <div class="question-card">
+      <div class="q-label" id="q-label">QUESTION 1</div>
+      <div class="q-text"  id="q-text">Loading…</div>
+    </div>
+
+    <div class="answers-grid">
+      <button class="ans-btn" data-opt="A">
+        <span class="ans-letter">A</span>
+        <span id="ans-A">—</span>
+      </button>
+      <button class="ans-btn" data-opt="B">
+        <span class="ans-letter">B</span>
+        <span id="ans-B">—</span>
+      </button>
+      <button class="ans-btn" data-opt="C">
+        <span class="ans-letter">C</span>
+        <span id="ans-C">—</span>
+      </button>
+      <button class="ans-btn" data-opt="D">
+        <span class="ans-letter">D</span>
+        <span id="ans-D">—</span>
+      </button>
+    </div>
+
+    <div class="buzz-result idle" id="buzz-result">
+      <div class="buzz-idle-text">⚡ Waiting for a buzz-in…</div>
+    </div>
+  </main>
+
+  <aside class="game-board">
+    <div class="board-title">🏆 Leaderboard</div>
+    <div class="leaderboard" id="leaderboard">
+      <div class="lb-empty">No scores yet</div>
+    </div>
+  </aside>
+
+  <footer class="game-ctrl">
+    <button class="btn btn-correct" id="btn-correct" disabled>✓ Correct (+1)</button>
+    <button class="btn btn-wrong"   id="btn-wrong"   disabled>✗ Wrong</button>
+    <button class="btn btn-exit"    id="btn-exit">End Game</button>
+    <button class="btn btn-next"    id="btn-next">Next Question →</button>
+  </footer>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────────────────────
+const WS_URL = "ws://192.168.10.168:8080";
+
+// ─────────────────────────────────────────────────────────────
+// BUILT-IN QUESTIONS  (replace or extend freely)
+// ─────────────────────────────────────────────────────────────
+const QUESTIONS = [
+  { q: "What is the capital city of Australia?",
+    opts: ["Sydney","Melbourne","Canberra","Brisbane"], ans: "C" },
+  { q: "How many sides does a hexagon have?",
+    opts: ["5","6","7","8"], ans: "B" },
+  { q: "Which planet is known as the Red Planet?",
+    opts: ["Venus","Jupiter","Saturn","Mars"], ans: "D" },
+  { q: "Who painted the Mona Lisa?",
+    opts: ["Michelangelo","Raphael","Leonardo da Vinci","Donatello"], ans: "C" },
+  { q: "What is the chemical symbol for gold?",
+    opts: ["Go","Gd","Ag","Au"], ans: "D" },
+  { q: "In what year did the first iPhone launch?",
+    opts: ["2005","2006","2007","2008"], ans: "C" },
+  { q: "What is the fastest land animal?",
+    opts: ["Lion","Cheetah","Pronghorn","Greyhound"], ans: "B" },
+  { q: "How many bones are in the adult human body?",
+    opts: ["196","206","216","226"], ans: "B" },
+  { q: "Which element has the atomic number 1?",
+    opts: ["Helium","Oxygen","Carbon","Hydrogen"], ans: "D" },
+  { q: "What is the longest river in the world?",
+    opts: ["Amazon","Yangtze","Mississippi","Nile"], ans: "D" },
+];
+
+// ─────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────
+let socket      = null;
+let roomCode    = "";
+let players     = {};   // { id: { name, score } }
+let currentQ    = 0;
+let roundWinner = null; // buzzer_id of first buzz this round
+let judged      = false; // whether correct/wrong clicked after buzz
+
+// ─────────────────────────────────────────────────────────────
+// UTILITIES
+// ─────────────────────────────────────────────────────────────
+function showPage(id) {
+  document.querySelectorAll(".page").forEach(p => {
+    p.classList.remove("active");
+    p.style.display = "";
+  });
+  const el = document.getElementById(id);
+  el.classList.add("active");
+  if (id === "page-game") el.style.display = "grid";
+}
+
+function toast(msg, type = "info") {
+  const el = document.createElement("div");
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById("toasts").appendChild(el);
+  setTimeout(() => el.remove(), 3400);
+}
+
+function setWsStatus(state) {
+  // state: "on" | "off" | "loading"
+  const label = state === "on" ? "Connected" : state === "loading" ? "Connecting…" : "Disconnected";
+  ["lobby-dot","game-dot"].forEach(id => {
+    const d = document.getElementById(id);
+    if (d) { d.className = "ws-dot " + (state === "on" ? "on" : state === "off" ? "off" : ""); }
+  });
+  const lt = document.getElementById("lobby-ws-text");
+  const gt = document.getElementById("game-ws-text");
+  if (lt) lt.textContent = label;
+  if (gt) gt.textContent = label;
+}
+
+function playerName(id) {
+  return players[id]?.name || `Buzzer ${id}`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// WEBSOCKET
+// Expected server → browser messages:
+//   { type: "player_joined", buzzer_id }
+//   { type: "player_left",   buzzer_id }
+//   { type: "buzz",          buzzer_id, timestamp }   ← winner
+//   { type: "round_reset" }
+//
+// Fallback: raw { buzzer_id, timestamp } (current server.js behaviour)
+// ─────────────────────────────────────────────────────────────
+function connectWS(room) {
+  const statusEl = document.getElementById("connect-status");
+  statusEl.textContent = "Connecting…";
+  statusEl.className = "status-msg";
+  setWsStatus("loading");
+
+  socket = new WebSocket(WS_URL);
+
+  socket.addEventListener("open", () => {
+    setWsStatus("on");
+    socket.send(JSON.stringify({ type: "host_join", room }));
+    statusEl.textContent = "Connected!";
+    statusEl.className = "status-msg ok";
+    document.getElementById("lobby-room").textContent = "ROOM: " + room;
+    showPage("page-lobby");
+    toast("Connected to server", "success");
+  });
+
+  socket.addEventListener("message", ({ data }) => {
+    let msg;
+    try { msg = JSON.parse(data); } catch { return; }
+    handleMessage(msg);
+  });
+
+  socket.addEventListener("close", () => {
+    setWsStatus("off");
+    toast("Server disconnected", "warn");
+  });
+
+  socket.addEventListener("error", () => {
+    statusEl.textContent = "Connection failed — check the server address";
+    statusEl.className = "status-msg err";
+    setWsStatus("off");
+  });
+}
+
+function handleMessage(msg) {
+  switch (msg.type) {
+    case "player_joined": addPlayer(msg.buzzer_id);           break;
+    case "player_left":   removePlayer(msg.buzzer_id);        break;
+    case "buzz":          onBuzz(msg.buzzer_id, msg.timestamp); break;
+    case "round_reset":   clearBuzz();                        break;
+    default:
+      // Raw buzzer press forwarded by current server.js
+      if (msg.buzzer_id !== undefined && msg.timestamp !== undefined) {
+        onBuzz(msg.buzzer_id, msg.timestamp);
+      }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// PLAYER MANAGEMENT
+// ─────────────────────────────────────────────────────────────
+function addPlayer(id) {
+  if (players[id]) return;
+  players[id] = { name: `Buzzer ${id}`, score: 0 };
+  renderLobby();
+  renderLeaderboard();
+  updateStartBtn();
+  toast(`Buzzer ${id} connected 🎮`, "success");
+}
+
+function removePlayer(id) {
+  delete players[id];
+  renderLobby();
+  renderLeaderboard();
+  updateStartBtn();
+  toast(`Buzzer ${id} disconnected`, "warn");
+}
+
+function updateStartBtn() {
+  document.getElementById("btn-start").disabled = Object.keys(players).length === 0;
+}
+
+// ─────────────────────────────────────────────────────────────
+// LOBBY RENDER
+// ─────────────────────────────────────────────────────────────
+function renderLobby() {
+  const grid  = document.getElementById("buzzer-grid");
+  const empty = document.getElementById("lobby-empty");
+  const ids   = Object.keys(players);
+
+  empty.style.display = ids.length ? "none" : "";
+
+  // Remove stale cards
+  grid.querySelectorAll(".buzzer-card").forEach(c => {
+    if (!players[c.dataset.id]) c.remove();
+  });
+
+  ids.forEach(id => {
+    if (grid.querySelector(`.buzzer-card[data-id="${id}"]`)) return;
+    const card = document.createElement("div");
+    card.className = "buzzer-card on";
+    card.dataset.id = id;
+    card.innerHTML = `
+      <div class="buzzer-emoji">🎯</div>
+      <div class="buzzer-id-label">Buzzer ${id}</div>
+      <input class="name-input" type="text" placeholder="Player name" value="${players[id].name}">
+    `;
+    card.querySelector("input").addEventListener("input", e => {
+      players[id].name = e.target.value.trim() || `Buzzer ${id}`;
+      renderLeaderboard();
+    });
+    grid.appendChild(card);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// GAME
+// ─────────────────────────────────────────────────────────────
+function loadQuestion(i) {
+  const q = QUESTIONS[i];
+  if (!q) return;
+
+  roundWinner = null;
+  judged      = false;
+
+  document.getElementById("q-label").textContent   = `QUESTION ${i + 1}`;
+  document.getElementById("q-text").textContent    = q.q;
+  document.getElementById("q-counter").textContent = `Question ${i + 1} of ${QUESTIONS.length}`;
+  ["A","B","C","D"].forEach((opt, idx) => {
+    document.getElementById(`ans-${opt}`).textContent = q.opts[idx];
+  });
+
+  document.querySelectorAll(".ans-btn").forEach(b => b.classList.remove("correct","wrong"));
+  clearBuzz();
+  setJudgeEnabled(false);
+}
+
+function onBuzz(buzzerId, timestamp) {
+  if (roundWinner !== null) return;
+  roundWinner = buzzerId;
+
+  if (!players[buzzerId]) {
+    players[buzzerId] = { name: `Buzzer ${buzzerId}`, score: 0 };
+    renderLobby();
+    renderLeaderboard();
+  }
+
+  const name = playerName(buzzerId);
+  const el   = document.getElementById("buzz-result");
+  el.className = "buzz-result live";
+  el.innerHTML = `
+    <div class="buzz-lightning">⚡</div>
+    <div class="buzz-label">BUZZED IN FIRST!</div>
+    <div class="buzz-name">${name}</div>
+    <div class="buzz-ts">Timestamp: ${timestamp} ms</div>
+  `;
+
+  setJudgeEnabled(true);
+  toast(`${name} buzzed in!`, "info");
+}
+
+function clearBuzz() {
+  roundWinner = null;
+  judged      = false;
+  const el    = document.getElementById("buzz-result");
+  el.className = "buzz-result idle";
+  el.innerHTML = `<div class="buzz-idle-text">⚡ Waiting for a buzz-in…</div>`;
+  setJudgeEnabled(false);
+}
+
+function setJudgeEnabled(on) {
+  document.getElementById("btn-correct").disabled = !on;
+  document.getElementById("btn-wrong").disabled   = !on;
+}
+
+function revealAnswer(correct) {
+  document.querySelectorAll(".ans-btn").forEach(b => {
+    if (b.dataset.opt === correct)  b.classList.add("correct");
+    else                            b.classList.add("wrong");
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// LEADERBOARD RENDER
+// ─────────────────────────────────────────────────────────────
+function renderLeaderboard() {
+  const board = document.getElementById("leaderboard");
+  const rows  = Object.entries(players)
+    .map(([id, p]) => ({ id, name: p.name || `Buzzer ${id}`, score: p.score }))
+    .sort((a, b) => b.score - a.score);
+
+  if (!rows.length) {
+    board.innerHTML = `<div class="lb-empty">No players yet</div>`;
+    return;
+  }
+
+  const medals = ["🥇","🥈","🥉"];
+  board.innerHTML = rows.map((r, i) => `
+    <div class="lb-row ${i === 0 && r.score > 0 ? "gold" : ""}">
+      <div class="lb-rank">${medals[i] ?? i + 1}</div>
+      <div class="lb-name">${r.name}</div>
+      <div class="lb-score">${r.score}</div>
+    </div>
+  `).join("");
+}
+
+// ─────────────────────────────────────────────────────────────
+// EVENT HANDLERS
+// ─────────────────────────────────────────────────────────────
+document.getElementById("btn-connect").addEventListener("click", () => {
+  const room = document.getElementById("room-input").value.trim().toUpperCase();
+  if (!room) return;
+  roomCode = room;
+  connectWS(room);
+});
+
+document.getElementById("room-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") document.getElementById("btn-connect").click();
+});
+
+document.getElementById("btn-start").addEventListener("click", () => {
+  currentQ = 0;
+  showPage("page-game");
+  loadQuestion(0);
+  renderLeaderboard();
+});
+
+document.getElementById("btn-correct").addEventListener("click", () => {
+  if (!roundWinner || judged) return;
+  judged = true;
+  players[roundWinner].score++;
+  revealAnswer(QUESTIONS[currentQ].ans);
+  renderLeaderboard();
+  setJudgeEnabled(false);
+  toast(`+1 point for ${playerName(roundWinner)}!`, "success");
+});
+
+document.getElementById("btn-wrong").addEventListener("click", () => {
+  if (!roundWinner || judged) return;
+  judged = true;
+  revealAnswer(QUESTIONS[currentQ].ans);
+  setJudgeEnabled(false);
+  toast("Wrong answer — no points awarded", "warn");
+});
+
+document.getElementById("btn-next").addEventListener("click", () => {
+  if (currentQ < QUESTIONS.length - 1) {
+    currentQ++;
+    loadQuestion(currentQ);
+  } else {
+    toast("That was the last question!", "info");
+  }
+});
+
+document.getElementById("btn-exit").addEventListener("click", () => {
+  if (confirm("End the game and return to the lobby?")) {
+    showPage("page-lobby");
+    clearBuzz();
+  }
+});
+</script>
+</body>
+</html>
