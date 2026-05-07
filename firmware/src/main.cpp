@@ -15,16 +15,23 @@ const unsigned long BUZZER_MS   = 500;
 const unsigned long ANSWER_WINDOW_MS = 7000;
 
 // ── Mode ──────────────────────────────────────────────────────
-enum Mode { BUZZ_MODE, ANSWER_MODE };
+enum Mode { BUZZ_MODE, ANSWER_MODE, VOTE_MODE };
 Mode currentMode = BUZZ_MODE;
 
 // ── State ─────────────────────────────────────────────────────
 WebSocketsClient ws;
 bool wsConnected = false;
 
-bool lastButtonState   = HIGH;   // HIGH = idle (INPUT_PULLUP)
 bool buzzerActive      = false;
 unsigned long buzzerStartMs = 0;
+
+// Hardware debounce
+bool          lastRawState    = HIGH;
+bool          debouncing      = false;
+unsigned long debounceStart   = 0;
+unsigned long lastPressMs     = 0;
+const unsigned long DEBOUNCE_MS      = 50;
+const unsigned long MIN_PRESS_GAP_MS = 300;
 
 int  pressCount        = 0;
 unsigned long answerStartMs = 0;
@@ -79,6 +86,14 @@ void onWsEvent(WStype_t type, uint8_t* payload, size_t length) {
       const char* msgType = doc["type"] | "";
       if (strcmp(msgType, "your_turn") == 0) {
         enterAnswerMode();
+      } else if (strcmp(msgType, "vote_start") == 0) {
+        currentMode = VOTE_MODE;
+        Serial.println("→ VOTE_MODE (silent presses)");
+      } else if (strcmp(msgType, "vote_end") == 0) {
+        if (currentMode == VOTE_MODE) {
+          currentMode = BUZZ_MODE;
+          Serial.println("→ BUZZ_MODE (vote ended)");
+        }
       }
       break;
     }
@@ -131,10 +146,26 @@ void loop() {
     buzzerActive = false;
   }
 
-  // Rising/falling edge detection
-  bool currentButtonState = digitalRead(BUTTON_PIN);
-  bool justPressed = (lastButtonState == HIGH && currentButtonState == LOW);
-  lastButtonState  = currentButtonState;
+  // Non-blocking hardware debounce
+  bool rawState = digitalRead(BUTTON_PIN);
+  if (!debouncing && lastRawState == HIGH && rawState == LOW) {
+    // Falling edge detected — start debounce timer
+    debouncing    = true;
+    debounceStart = millis();
+  }
+  lastRawState = rawState;
+
+  bool justPressed = false;
+  if (debouncing && (millis() - debounceStart >= DEBOUNCE_MS)) {
+    debouncing = false;
+    if (digitalRead(BUTTON_PIN) == LOW) {          // still LOW after 50 ms → real press
+      unsigned long now = millis();
+      if (now - lastPressMs >= MIN_PRESS_GAP_MS) { // enforce 300 ms gap
+        justPressed = true;
+        lastPressMs = now;
+      }
+    }
+  }
 
   if (currentMode == BUZZ_MODE) {
     if (justPressed) {
@@ -155,7 +186,7 @@ void loop() {
       }
     }
 
-  } else { // ANSWER_MODE
+  } else if (currentMode == ANSWER_MODE) {
     if (justPressed && pressCount < 4) {
       pressCount++;
       Serial.printf("Press %d/4\n", pressCount);
@@ -163,6 +194,16 @@ void loop() {
 
     if (millis() - answerStartMs >= ANSWER_WINDOW_MS) {
       sendAnswer();
+    }
+
+  } else { // VOTE_MODE — silent presses, no buzzer
+    if (justPressed && wsConnected) {
+      StaticJsonDocument<128> doc;
+      doc["buzzer_id"] = BUZZER_ID;
+      doc["type"]      = "buzz";
+      doc["timestamp"] = millis();
+      sendJson(doc);
+      Serial.println("Vote press (silent).");
     }
   }
 }

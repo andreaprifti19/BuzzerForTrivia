@@ -3,6 +3,7 @@ const { WebSocketServer } = require("ws");
 const PORT               = 8080;
 const ROUND_RESET_MS     = 5000;
 const VOTE_DEBOUNCE_MS   = 1500; // ms of silence after last press → finalise vote
+const ANSWER_DEBOUNCE_MS = 7000; // ms of silence after last press → finalise answer selection
 
 const wss = new WebSocketServer({ port: PORT });
 
@@ -12,13 +13,22 @@ const buzzerMap  = new Map(); // buzzer_id → ws
 
 let roundWinner  = null;
 let resetTimer   = null;
+let judged       = false; // whether the current buzz winner has been judged by host
+let scores       = {};    // { buzzer_id: points } — server-authoritative scores
 
 // Vote state
+let voteActive     = false;  // guard: true while a vote is in progress
 let voteMode       = false;
 let voteCategories = [];
 let voteCounts     = {};          // { A: n, B: n, C: n, D: n }
 let voterDone      = new Set();   // buzzer_ids that have already cast a vote
 let pressBuffers   = {};          // { buzzer_id: { count, timer } }
+
+// Answer window state (active while the declared winner presses to pick A/B/C/D)
+let answerActive   = false;
+let answerBuzzerId = null;
+let answerPresses  = 0;
+let answerTimer    = null;
 
 // Question state
 let questionBank   = [];          // processed question objects
@@ -68,7 +78,9 @@ function log(...args) {
 // Round management
 // ─────────────────────────────────────────────────────────────
 function resetRound(source = "auto") {
+  closeAnswerWindow();
   roundWinner = null;
+  judged      = false;
   if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
   log(`Round reset (${source}).`);
   broadcast(browsers, { type: "round_reset" });
@@ -80,9 +92,44 @@ function scheduleAutoReset() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Answer window
+// ─────────────────────────────────────────────────────────────
+function closeAnswerWindow() {
+  if (answerTimer) { clearTimeout(answerTimer); answerTimer = null; }
+  answerActive   = false;
+  answerBuzzerId = null;
+  answerPresses  = 0;
+}
+
+function finaliseAnswer(reason = "timeout") {
+  if (!answerActive) return;
+  const presses = answerPresses;
+  const id      = answerBuzzerId;
+  const choice  = presses >= 1 && presses <= 4 ? ["A", "B", "C", "D"][presses - 1] : null;
+  closeAnswerWindow();
+  log(`Answer window closed (${reason}). Buzzer ${id}: ${presses} press(es) → ${choice ?? "none"}`);
+  if (choice) {
+    broadcast(browsers, { type: "answer_selected", buzzer_id: id, choice });
+  }
+  // Safety net: auto-reset if host doesn't judge promptly
+  scheduleAutoReset();
+}
+
+function openAnswerWindow(buzzer_id) {
+  // Cancel any pending auto-reset — the answer window owns the timeout from here
+  if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
+  answerActive   = true;
+  answerBuzzerId = buzzer_id;
+  answerPresses  = 0;
+  answerTimer    = setTimeout(() => finaliseAnswer("timeout"), ANSWER_DEBOUNCE_MS);
+  log(`Answer window opened for Buzzer ${buzzer_id} (${ANSWER_DEBOUNCE_MS / 1000}s debounce).`);
+}
+
+// ─────────────────────────────────────────────────────────────
 // Category vote
 // ─────────────────────────────────────────────────────────────
 function startVote(cats) {
+  voteActive     = true;
   voteMode       = true;
   voteCategories = cats;
   voteCounts     = { A: 0, B: 0, C: 0, D: 0 };
@@ -91,6 +138,7 @@ function startVote(cats) {
   roundWinner    = null; // unlock buzzers for vote presses
   log("Category vote started:", cats);
   broadcast(browsers, { type: "category_vote", categories: cats, counts: voteCounts });
+  broadcast(buzzers,  { type: "vote_start" }); // tell ESP32s to enter VOTE_MODE
 }
 
 function finaliseVote(buzzer_id) {
@@ -105,20 +153,29 @@ function finaliseVote(buzzer_id) {
 
   voterDone.add(buzzer_id);
   voteCounts[choice]++;
-  log(`Buzzer ${buzzer_id} voted ${choice} (${count} press(es))`);
-  broadcast(browsers, { type: "vote_update", buzzer_id, choice, counts: { ...voteCounts } });
+  const choiceName = voteCategories[["A","B","C","D"].indexOf(choice)] ?? choice;
+  log(`Buzzer ${buzzer_id} voted ${choice} — ${choiceName} (${count} press(es))`);
+  broadcast(browsers, { type: "vote_update", buzzer_id, choice, choiceName, counts: { ...voteCounts } });
 }
 
 function endVote() {
-  voteMode = false;
+  voteActive = false;
+  voteMode   = false;
   // Cancel any pending debounce timers and finalise early
   for (const id of Object.keys(pressBuffers)) {
     if (pressBuffers[id].timer) clearTimeout(pressBuffers[id].timer);
     finaliseVote(Number(id));
   }
   pressBuffers = {};
-  log("Vote ended. Results:", voteCounts);
-  broadcast(browsers, { type: "vote_end", counts: { ...voteCounts } });
+
+  // Determine winning option (highest vote count; ties go to first alphabetically)
+  const opts = ["A","B","C","D"];
+  const [winnerOpt] = Object.entries(voteCounts).reduce((best, curr) => curr[1] > best[1] ? curr : best, ["", -1]);
+  const winnerName  = winnerOpt ? (voteCategories[opts.indexOf(winnerOpt)] ?? winnerOpt) : null;
+
+  log(`Vote ended. Winner: ${winnerOpt} (${winnerName}). Results:`, voteCounts);
+  broadcast(browsers, { type: "vote_end", counts: { ...voteCounts }, winner: winnerOpt, winnerName });
+  broadcast(buzzers,  { type: "vote_end" }); // tell ESP32s to return to BUZZ_MODE
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -169,10 +226,13 @@ function processQuestion(raw) {
 }
 
 async function fetchQuestions(categoryId) {
-  const url = `https://opentdb.com/api.php?amount=25&category=${categoryId}&type=multiple`;
+  const url = `https://opentdb.com/api.php?amount=10&category=${categoryId}&type=multiple`;
+  log(`Fetching: ${url}`);
   const res  = await fetch(url);
+  log(`OpenTDB response: HTTP ${res.status}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
+  log(`OpenTDB response_code=${data.response_code}, questions=${data.results?.length ?? 0}`);
   if (data.response_code !== 0) throw new Error(`OpenTDB response_code ${data.response_code}`);
   return data.results.map(processQuestion);
 }
@@ -180,14 +240,14 @@ async function fetchQuestions(categoryId) {
 function sendQuestion(index) {
   const q = questionBank[index];
   if (!q) return;
-  log(`Sending question ${index + 1}/${questionBank.length}: ${q.question.slice(0, 60)}…`);
+  log(`Sending Q${index + 1}/${questionBank.length}: ${q.question.slice(0, 60)}…`);
   broadcast(browsers, {
-    type:     "question",
-    index,
-    total:    questionBank.length,
-    question: q.question,
-    options:  q.options,
-    correct:  q.correct,
+    type:           "question",
+    questionNumber: index + 1,
+    total:          questionBank.length,
+    text:           q.question,
+    options:        q.options,
+    correct:        q.correct,
   });
 }
 
@@ -208,8 +268,18 @@ function handleHostMessage(msg) {
         .then((questions) => {
           questionBank  = questions;
           currentQIndex = 0;
-          log(`Loaded ${questionBank.length} questions for "${catName}" (ID ${catId}).`);
-          sendQuestion(0);
+          scores        = {};    // fresh scores for new game
+          judged        = false;
+          log(`Loaded ${questionBank.length} questions for "${catName}" (ID ${catId}). Broadcasting Q1.`);
+          const q = questions[0];
+          broadcast(browsers, {
+            type:           "question",
+            questionNumber: 1,
+            total:          questions.length,
+            text:           q.question,
+            options:        q.options,
+            correct:        q.correct,
+          });
         })
         .catch((err) => {
           log("Failed to fetch questions:", err.message);
@@ -227,6 +297,28 @@ function handleHostMessage(msg) {
       resetRound("host");
       break;
 
+    case "judge": {
+      finaliseAnswer("host_judge"); // lock in the answer selection before scoring
+      if (roundWinner === null || judged) {
+        log("Judge ignored — no active winner or already judged.");
+        break;
+      }
+      judged = true;
+      const winner = roundWinner;
+      if (msg.result === "correct") scores[winner] = (scores[winner] || 0) + 1;
+      const correctIndex = questionBank[currentQIndex]?.correct ?? null;
+      log(`Judge: ${msg.result} for Buzzer ${winner}. Scores: ${JSON.stringify(scores)}`);
+      broadcast(browsers, {
+        type:         "judge_result",
+        result:       msg.result,
+        buzzer_id:    winner,
+        correctIndex,
+        scores:       { ...scores },
+      });
+      resetRound("judge");
+      break;
+    }
+
     case "next_question":
       resetRound("host");
       if (questionBank.length > 0) {
@@ -235,7 +327,7 @@ function handleHostMessage(msg) {
           sendQuestion(currentQIndex);
         } else {
           log("All questions exhausted.");
-          broadcast(browsers, { type: "game_over", total: questionBank.length });
+          broadcast(browsers, { type: "game_over", total: questionBank.length, scores: { ...scores } });
         }
       } else {
         broadcast(browsers, { type: "next_question" });
@@ -243,6 +335,10 @@ function handleHostMessage(msg) {
       break;
 
     case "start_vote":
+      if (voteActive) {
+        log("Vote already in progress — ignoring start_vote.");
+        break;
+      }
       startVote(msg.categories || ["Category A", "Category B", "Category C", "Category D"]);
       break;
 
@@ -254,7 +350,8 @@ function handleHostMessage(msg) {
       storedCategoryName = msg.category;
       storedCategoryId   = msg.category_id ?? CATEGORY_ID_MAP[msg.category] ?? null;
       log(`Category stored: "${storedCategoryName}" → OpenTDB ID ${storedCategoryId}`);
-      broadcast(browsers, { type: "category_selected", category: storedCategoryName });
+      broadcast(browsers, { type: "category_selected",  category:     storedCategoryName });
+      broadcast(browsers, { type: "category_confirmed", categoryName: storedCategoryName });
       break;
   }
 }
@@ -274,12 +371,24 @@ function handleBuzzerPress(buzzer_id, timestamp) {
     return;
   }
 
+  // Answer window: the declared winner is pressing to select their answer (1=A … 4=D)
+  if (answerActive && buzzer_id === answerBuzzerId) {
+    answerPresses++;
+    // Debounce: reset the 7-second timer on each press
+    if (answerTimer) clearTimeout(answerTimer);
+    answerTimer = setTimeout(() => finaliseAnswer("timeout"), ANSWER_DEBOUNCE_MS);
+    const letter = ["A", "B", "C", "D"][answerPresses - 1] ?? "?";
+    log(`Buzzer ${buzzer_id} answer press #${answerPresses} → ${letter}`);
+    return;
+  }
+
   if (roundWinner !== null) {
     log(`Buzzer ${buzzer_id} pressed — round already won by ${roundWinner}, ignored.`);
     return;
   }
 
   roundWinner = buzzer_id;
+  judged      = false;
   log(`*** Winner: Buzzer ${buzzer_id} (t=${timestamp}) ***`);
   broadcast(browsers, { type: "buzz", buzzer_id, timestamp });
 
@@ -290,7 +399,7 @@ function handleBuzzerPress(buzzer_id, timestamp) {
     log(`Sent your_turn to Buzzer ${buzzer_id}.`);
   }
 
-  scheduleAutoReset();
+  openAnswerWindow(buzzer_id);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -319,11 +428,16 @@ wss.on("connection", (ws) => {
         ws.send(JSON.stringify({
           type: "state_sync",
           roundWinner,
-          voteMode, voteCounts, voteCategories,
-          questionIndex:     currentQIndex,
-          questionTotal:     questionBank.length,
-          currentQuestion:   currentQIndex >= 0 ? questionBank[currentQIndex] : null,
+          voteActive, voteMode, voteCounts, voteCategories,
+          questionNumber:  currentQIndex >= 0 ? currentQIndex + 1 : null,
+          questionTotal:   questionBank.length,
+          currentQuestion: currentQIndex >= 0 ? {
+            text:    questionBank[currentQIndex].question,
+            options: questionBank[currentQIndex].options,
+            correct: questionBank[currentQIndex].correct,
+          } : null,
           storedCategoryName,
+          scores: { ...scores },
         }));
         return;
       }

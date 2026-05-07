@@ -207,6 +207,16 @@
       background: rgba(255,255,255,.12); border-radius: 999px;
       padding: .15rem .55rem; font-size: .75rem; font-weight: 700;
     }
+    .cvs-winner-banner {
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.3rem; text-align: center;
+      padding: .7rem 1rem; border-radius: 12px; margin-bottom: .8rem;
+      background: linear-gradient(135deg, rgba(255,230,0,.18), rgba(255,0,110,.12));
+      border: 2px solid var(--yellow);
+      animation: buzzPop .45s cubic-bezier(.175,.885,.32,1.275);
+    }
+    .cvs-winner-banner .banner-opt { color: var(--yellow); }
+    .cvs-winner-banner .banner-name { color: #fff; margin-left: .4rem; }
 
     /* ═══════════════════════════════════════════════════
        GAME
@@ -331,8 +341,6 @@
       grid-area: ctrl; background: rgba(0,0,0,.42); border-top: 1px solid var(--border);
       padding: .9rem 1.5rem; display: flex; align-items: center; gap: .85rem; flex-wrap: wrap;
     }
-    .btn-correct { background: linear-gradient(135deg,#00c853,#00e676); color:#000; font-size:1.05rem; padding:.65rem 1.4rem; box-shadow:0 4px 18px rgba(0,200,83,.3); }
-    .btn-wrong   { background: linear-gradient(135deg,#d50000,#ff1744); color:#fff; font-size:1.05rem; padding:.65rem 1.4rem; box-shadow:0 4px 18px rgba(213,0,0,.3); }
     .btn-next    { background: linear-gradient(135deg,var(--cyan),#0077ff); color:#fff; font-size:1.05rem; padding:.65rem 1.8rem; box-shadow:0 4px 18px rgba(0,212,255,.3); margin-left:auto; }
     .btn-exit    { background: rgba(255,255,255,.08); color: var(--muted); font-size:1.05rem; padding:.65rem 1.2rem; }
 
@@ -340,6 +348,59 @@
     .loading-msg {
       text-align: center; padding: 2rem; color: var(--muted);
       font-family: 'Fredoka One', cursive; font-size: 1.3rem; letter-spacing: .05em;
+    }
+
+    /* ── Round splash ─────────────────────────────────── */
+    .round-splash {
+      position: fixed; inset: 0; z-index: 8500;
+      background: rgba(8,0,26,.97);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: .5rem;
+    }
+    .round-splash-label {
+      font-family: 'Fredoka One', cursive;
+      font-size: clamp(1.2rem, 3vw, 2rem);
+      letter-spacing: .4em; text-transform: uppercase;
+      color: var(--muted);
+    }
+    .round-splash-num {
+      font-family: 'Fredoka One', cursive;
+      font-size: clamp(6rem, 20vw, 14rem);
+      line-height: 1;
+      background: linear-gradient(135deg, var(--yellow), var(--pink));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      animation: roundPulse 1.4s ease-in-out infinite;
+    }
+    .round-splash-sub {
+      font-size: 1rem; color: var(--muted);
+      letter-spacing: .2em; text-transform: uppercase;
+    }
+    @keyframes roundPulse {
+      0%,100% { filter: drop-shadow(0 0 20px rgba(255,230,0,.35)); transform: scale(1); }
+      50%      { filter: drop-shadow(0 0 55px rgba(255,0,110,.65)); transform: scale(1.04); }
+    }
+
+    /* ── Category confirmed overlay ──────────────────── */
+    .cat-overlay {
+      position: fixed; inset: 0; z-index: 9000;
+      background: rgba(8,0,26,.93);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 1.4rem;
+      animation: overlayIn .35s ease;
+    }
+    @keyframes overlayIn { from { opacity: 0; transform: scale(.95); } to { opacity: 1; transform: scale(1); } }
+    .cat-overlay-name {
+      font-family: 'Fredoka One', cursive;
+      font-size: clamp(3rem, 10vw, 7rem);
+      text-align: center; line-height: 1.1; padding: 0 1.5rem;
+      background: linear-gradient(135deg, var(--yellow), var(--pink));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      filter: drop-shadow(0 0 30px rgba(255,230,0,.35));
+    }
+    .cat-overlay-count {
+      font-family: 'Fredoka One', cursive; font-size: 3.5rem;
+      color: var(--cyan); filter: drop-shadow(0 0 12px rgba(0,212,255,.5));
+      transition: opacity .15s;
     }
 
     /* Responsive */
@@ -439,10 +500,8 @@
   </aside>
 
   <footer class="game-ctrl">
-    <button class="btn btn-correct" id="btn-correct" disabled>✓ Correct (+1)</button>
-    <button class="btn btn-wrong"   id="btn-wrong"   disabled>✗ Wrong</button>
-    <button class="btn btn-exit"    id="btn-exit">End Game</button>
-    <button class="btn btn-next"    id="btn-next">Next Question →</button>
+    <button class="btn btn-exit" id="btn-exit">End Game</button>
+    <button class="btn btn-next" id="btn-next">Next Question →</button>
   </footer>
 
 </div>
@@ -460,7 +519,6 @@ let socket             = null;
 let roomCode           = "";
 let players            = {};      // { id: { name, score } }
 let roundWinner        = null;    // buzzer_id of current round winner
-let judged             = false;   // host has clicked correct/wrong
 let serverCorrectIndex = null;    // correct answer index from server question
 let countdownTimer     = null;
 let countdownVal       = 59;
@@ -546,25 +604,30 @@ function handleMessage(msg) {
     case "buzz":             onBuzz(msg.buzzer_id, msg.timestamp);  break;
     case "round_reset":      clearBuzz();                           break;
     case "question":         onQuestion(msg);                       break;
+    case "judge_result":     onJudgeResult(msg);                    break;
     case "category_vote":    onCategoryVote(msg);                   break;
     case "vote_update":      onVoteUpdate(msg);                     break;
     case "vote_end":         onVoteEnd(msg);                        break;
     case "game_over":        onGameOver(msg);                       break;
-    case "loading":          toast(msg.message, "info");            break;
-    case "error":            toast(msg.message, "err");             break;
-    case "category_selected":
-      toast(`Category: ${msg.category}`, "info");
-      break;
+    case "loading":             toast(msg.message, "info");            break;
+    case "error":               toast(msg.message, "err");             break;
+    case "category_selected":   toast(`Category: ${msg.category}`, "info"); break;
+    case "category_confirmed":  showCategoryOverlay(msg.categoryName); break;
     case "state_sync":
-      // Restore mid-game question if rejoining
-      if (msg.currentQuestion) onQuestion({
-        index:    msg.questionIndex,
-        total:    msg.questionTotal,
-        question: msg.currentQuestion.question,
-        options:  msg.currentQuestion.options,
-        correct:  msg.currentQuestion.correct,
-      });
-      if (msg.voteMode) onCategoryVote({ categories: msg.voteCategories, counts: msg.voteCounts });
+      // Restore mid-game state on reconnect / page reload
+      if (msg.currentQuestion) {
+        onQuestion({
+          questionNumber: msg.questionNumber,
+          total:          msg.questionTotal,
+          text:           msg.currentQuestion.text,
+          options:        msg.currentQuestion.options,
+          correct:        msg.currentQuestion.correct,
+        });
+      } else if (msg.voteMode) {
+        onCategoryVote({ categories: msg.voteCategories, counts: msg.voteCounts });
+      } else if (msg.storedCategoryName) {
+        toast(`Category: ${msg.storedCategoryName}`, "info");
+      }
       break;
     default:
       // Fallback: raw buzzer press
@@ -652,53 +715,121 @@ function onCategoryVote(msg) {
 }
 
 function onVoteUpdate(msg) {
-  const { buzzer_id, choice } = msg;
+  const { buzzer_id, choice, choiceName } = msg;
 
-  // Add voter chip to the category card
+  // If the vote section exists and the category cards are populated, update them
   const voters = document.getElementById(`cvs-voters-${choice}`);
-  if (voters && !voters.querySelector(`[data-voter="${buzzer_id}"]`)) {
-    const chip = document.createElement("div");
-    chip.className = "voter-chip";
-    chip.dataset.voter = buzzer_id;
-    chip.textContent = playerName(buzzer_id);
-    voters.appendChild(chip);
+  if (voters) {
+    // Replace any plain-text count placeholder with named chips
+    if (voters.dataset.countOnly) {
+      voters.innerHTML = "";
+      delete voters.dataset.countOnly;
+    }
+    if (!voters.querySelector(`[data-voter="${buzzer_id}"]`)) {
+      const chip = document.createElement("div");
+      chip.className = "voter-chip";
+      chip.dataset.voter = buzzer_id;
+      chip.textContent = playerName(buzzer_id);
+      voters.appendChild(chip);
+    }
   }
 
-  // Show choice on the player's card
+  // Update the player's buzzer card with their chosen option letter
   const badge = document.getElementById(`vote-badge-${buzzer_id}`);
-  if (badge) { badge.textContent = choice; badge.dataset.choice = choice; }
+  if (badge) {
+    badge.textContent = choice;
+    badge.dataset.choice = choice;
+    badge.title = choiceName ?? choice;
+  }
 }
 
 function onVoteEnd(msg) {
-  const counts = msg.counts || {};
-  const max    = Math.max(...Object.values(counts), 0);
-  if (max === 0) return;
-  Object.entries(counts).forEach(([opt, n]) => {
+  const counts     = msg.counts    || {};
+  const winnerOpt  = msg.winner;   // e.g. "B"
+  const winnerName = msg.winnerName; // e.g. "History"
+
+  // Highlight the winning card, dim the rest
+  Object.keys(counts).forEach(opt => {
     const card = document.getElementById(`cvs-card-${opt}`);
-    if (card && n === max) card.classList.add("winner");
+    if (!card) return;
+    if (opt === winnerOpt) {
+      card.classList.add("winner");
+    } else {
+      card.style.opacity = "0.45";
+    }
   });
+
+  // Insert winner banner at the top of the vote section
+  const section = document.getElementById("cat-vote-section");
+  if (section && winnerOpt) {
+    // Remove any previous banner
+    section.querySelector(".cvs-winner-banner")?.remove();
+    const banner = document.createElement("div");
+    banner.className = "cvs-winner-banner";
+    banner.innerHTML = `🏆 WINNER: <span class="banner-opt">${winnerOpt}</span><span class="banner-name">${winnerName ?? winnerOpt}</span>`;
+    // Insert after the header
+    const header = section.querySelector(".cvs-header");
+    header ? header.after(banner) : section.prepend(banner);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
 // QUESTION
 // ─────────────────────────────────────────────────────────────
+function showCategoryOverlay(categoryName) {
+  document.getElementById("cat-overlay")?.remove();
+  const el = document.createElement("div");
+  el.id        = "cat-overlay";
+  el.className = "cat-overlay";
+  el.innerHTML = `
+    <div class="cat-overlay-name">${categoryName}</div>
+    <div class="cat-overlay-count" id="cat-overlay-count">3</div>
+  `;
+  document.body.appendChild(el);
+
+  const steps = ["3", "2", "1", "Get Ready!"];
+  let i = 0;
+  const countEl = el.querySelector("#cat-overlay-count");
+  const t = setInterval(() => {
+    i++;
+    if (i < steps.length) {
+      countEl.style.opacity = "0";
+      setTimeout(() => { countEl.textContent = steps[i]; countEl.style.opacity = "1"; }, 150);
+    } else {
+      clearInterval(t);
+      showPage("page-game");        // reveal game screen before overlay fades
+      el.style.transition = "opacity .4s";
+      el.style.opacity    = "0";
+      setTimeout(() => el.remove(), 420);
+    }
+  }, 1000);
+}
+
 function onQuestion(msg) {
+  // Switch to game screen first — before touching any other DOM
+  showPage("page-game");
+
+  // Clean up anything that might still be covering the screen
+  document.getElementById("cat-overlay")?.remove();
+  document.getElementById("cat-vote-section").style.display = "none";
+
   serverCorrectIndex = msg.correct;
   roundWinner        = null;
   judged             = false;
 
-  document.getElementById("q-label").textContent   = `QUESTION ${msg.index + 1}`;
-  document.getElementById("q-text").textContent    = msg.question;
-  document.getElementById("q-counter").textContent = `Question ${msg.index + 1} of ${msg.total}`;
-  ["A","B","C","D"].forEach((opt, i) => { document.getElementById(`ans-${opt}`).textContent = msg.options[i] ?? "—"; });
+  // Support both {text, questionNumber} (server format) and legacy {question, index}
+  const qNum  = msg.questionNumber ?? ((msg.index ?? 0) + 1);
+  const qText = msg.text ?? msg.question ?? "—";
 
-  document.querySelectorAll(".ans-btn").forEach(b => b.classList.remove("correct","wrong"));
+  document.getElementById("q-label").textContent   = `QUESTION ${qNum}`;
+  document.getElementById("q-text").textContent    = qText;
+  document.getElementById("q-counter").textContent = `Question ${qNum} of ${msg.total ?? "?"}`;
+  ["A","B","C","D"].forEach((opt, i) => {
+    document.getElementById(`ans-${opt}`).textContent = msg.options?.[i] ?? "—";
+  });
+
+  document.querySelectorAll(".ans-btn").forEach(b => b.classList.remove("correct", "wrong"));
   clearBuzz();
-  setJudgeEnabled(false);
-
-  // Hide vote section and navigate to game
-  document.getElementById("cat-vote-section").style.display = "none";
-  showPage("page-game");
   startCountdown();
 }
 
@@ -771,23 +902,15 @@ function onBuzz(buzzerId, timestamp) {
     <div class="buzz-name">${name}</div>
     <div class="buzz-ts">Timestamp: ${timestamp} ms</div>
   `;
-  setJudgeEnabled(true);
   toast(`${name} buzzed in!`, "info");
 }
 
 function clearBuzz() {
   roundWinner = null;
-  judged      = false;
   const el    = document.getElementById("buzz-result");
   if (!el) return;
   el.className = "buzz-result idle";
   el.innerHTML = `<div class="buzz-idle-text">⚡ Waiting for a buzz-in…</div>`;
-  setJudgeEnabled(false);
-}
-
-function setJudgeEnabled(on) {
-  document.getElementById("btn-correct").disabled = !on;
-  document.getElementById("btn-wrong").disabled   = !on;
 }
 
 function revealAnswer() {
@@ -797,6 +920,20 @@ function revealAnswer() {
   document.querySelectorAll(".ans-btn").forEach(b => {
     b.classList.add(b.dataset.opt === correct ? "correct" : "wrong");
   });
+}
+
+function onJudgeResult(msg) {
+  if (msg.scores) {
+    Object.entries(msg.scores).forEach(([id, pts]) => {
+      if (players[id]) players[id].score = pts;
+      else players[id] = { name: `Buzzer ${id}`, score: pts };
+    });
+    renderLeaderboard();
+  }
+  revealAnswer();
+  const name = playerName(msg.buzzer_id);
+  if (msg.result === "correct") toast(`✓ ${name} got it right! +1`, "success");
+  else toast(`✗ Wrong answer`, "warn");
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -832,24 +969,6 @@ document.getElementById("btn-connect").addEventListener("click", () => {
 
 document.getElementById("room-input").addEventListener("keydown", e => {
   if (e.key === "Enter") document.getElementById("btn-connect").click();
-});
-
-document.getElementById("btn-correct").addEventListener("click", () => {
-  if (!roundWinner || judged) return;
-  judged = true;
-  players[roundWinner].score++;
-  revealAnswer();
-  renderLeaderboard();
-  setJudgeEnabled(false);
-  toast(`+1 point for ${playerName(roundWinner)}!`, "success");
-});
-
-document.getElementById("btn-wrong").addEventListener("click", () => {
-  if (!roundWinner || judged) return;
-  judged = true;
-  revealAnswer();
-  setJudgeEnabled(false);
-  toast("Wrong answer — no points awarded", "warn");
 });
 
 document.getElementById("btn-next").addEventListener("click", () => {
