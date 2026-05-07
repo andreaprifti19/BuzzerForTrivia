@@ -6,18 +6,49 @@ const VOTE_DEBOUNCE_MS   = 1500; // ms of silence after last press → finalise 
 
 const wss = new WebSocketServer({ port: PORT });
 
-const browsers = new Set(); // index.html + host.html clients
-const buzzers  = new Set();
+const browsers   = new Set(); // index.html + host.html clients
+const buzzers    = new Set();
+const buzzerMap  = new Map(); // buzzer_id → ws
 
 let roundWinner  = null;
 let resetTimer   = null;
 
 // Vote state
-let voteMode     = false;
+let voteMode       = false;
 let voteCategories = [];
-let voteCounts   = {};          // { A: n, B: n, C: n, D: n }
-let voterDone    = new Set();   // buzzer_ids that have already cast a vote
-let pressBuffers = {};          // { buzzer_id: { count, timer } }
+let voteCounts     = {};          // { A: n, B: n, C: n, D: n }
+let voterDone      = new Set();   // buzzer_ids that have already cast a vote
+let pressBuffers   = {};          // { buzzer_id: { count, timer } }
+
+// Question state
+let questionBank   = [];          // processed question objects
+let currentQIndex  = -1;
+
+// Stored category (set via set_category before start_game)
+let storedCategoryId   = null;
+let storedCategoryName = null;
+
+const CATEGORY_ID_MAP = {
+  "General Knowledge": 9,
+  "Entertainment":     11,
+  "Film":              11,
+  "Music":             12,
+  "Television":        14,
+  "Video Games":       15,
+  "Science":           17,
+  "Science & Nature":  17,
+  "Technology":        18,
+  "Computers":         18,
+  "Mathematics":       19,
+  "Mythology":         20,
+  "Sports":            21,
+  "Geography":         22,
+  "History":           23,
+  "Politics":          24,
+  "Art":               25,
+  "Art & Literature":  25,
+  "Animals":           27,
+};
 
 // ─────────────────────────────────────────────────────────────
 // Helpers
@@ -59,7 +90,7 @@ function startVote(cats) {
   pressBuffers   = {};
   roundWinner    = null; // unlock buzzers for vote presses
   log("Category vote started:", cats);
-  broadcast(browsers, { type: "vote_start", categories: cats, counts: voteCounts });
+  broadcast(browsers, { type: "category_vote", categories: cats, counts: voteCounts });
 }
 
 function finaliseVote(buzzer_id) {
@@ -91,10 +122,102 @@ function endVote() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Question fetching & processing
+// ─────────────────────────────────────────────────────────────
+
+// Named entity map for characters OpenTDB commonly encodes
+const NAMED_ENTITIES = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'",
+  ldquo: "“", rdquo: "”", lsquo: "‘", rsquo: "’",
+  hellip: "…", ndash: "–", mdash: "—",
+  eacute: "é", egrave: "è", ecirc: "ê", euml: "ë",
+  agrave: "à", aacute: "á", acirc: "â", auml: "ä",
+  iacute: "í", icirc: "î", igrave: "ì", iuml: "ï",
+  oacute: "ó", ocirc: "ô", ograve: "ò", ouml: "ö",
+  uacute: "ú", ucirc: "û", ugrave: "ù", uuml: "ü",
+  ntilde: "ñ", ccedil: "ç", szlig: "ß",
+  deg: "°", frac12: "½", times: "×", divide: "÷",
+  prime: "′", Prime: "″", pi: "π", alpha: "α",
+};
+
+function decodeHtml(str) {
+  return str
+    .replace(/&#(\d+);/g,       (_, n) => String.fromCodePoint(parseInt(n, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&([a-zA-Z]+);/g,  (orig, name) => NAMED_ENTITIES[name] ?? orig);
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function processQuestion(raw) {
+  const correct      = decodeHtml(raw.correct_answer);
+  const incorrects   = raw.incorrect_answers.map(decodeHtml);
+  const options      = shuffle([correct, ...incorrects]);
+  const correctIndex = options.indexOf(correct);
+  return {
+    question: decodeHtml(raw.question),
+    options,
+    correct: correctIndex,
+  };
+}
+
+async function fetchQuestions(categoryId) {
+  const url = `https://opentdb.com/api.php?amount=25&category=${categoryId}&type=multiple`;
+  const res  = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (data.response_code !== 0) throw new Error(`OpenTDB response_code ${data.response_code}`);
+  return data.results.map(processQuestion);
+}
+
+function sendQuestion(index) {
+  const q = questionBank[index];
+  if (!q) return;
+  log(`Sending question ${index + 1}/${questionBank.length}: ${q.question.slice(0, 60)}…`);
+  broadcast(browsers, {
+    type:     "question",
+    index,
+    total:    questionBank.length,
+    question: q.question,
+    options:  q.options,
+    correct:  q.correct,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
 // Host message handler
 // ─────────────────────────────────────────────────────────────
 function handleHostMessage(msg) {
   switch (msg.type) {
+    case "start_game": {
+      const catId   = msg.category_id ?? storedCategoryId;
+      const catName = storedCategoryName ?? `category ${catId}`;
+      if (!catId) {
+        broadcast(browsers, { type: "error", message: "No category selected. Use Set Category in the host panel first." });
+        break;
+      }
+      broadcast(browsers, { type: "loading", message: `Loading ${catName} questions…` });
+      fetchQuestions(catId)
+        .then((questions) => {
+          questionBank  = questions;
+          currentQIndex = 0;
+          log(`Loaded ${questionBank.length} questions for "${catName}" (ID ${catId}).`);
+          sendQuestion(0);
+        })
+        .catch((err) => {
+          log("Failed to fetch questions:", err.message);
+          broadcast(browsers, { type: "error", message: `Could not load questions: ${err.message}` });
+        });
+      break;
+    }
+
     case "start_round":
       resetRound("host");
       voteMode = false;
@@ -106,7 +229,17 @@ function handleHostMessage(msg) {
 
     case "next_question":
       resetRound("host");
-      broadcast(browsers, { type: "next_question" });
+      if (questionBank.length > 0) {
+        if (currentQIndex < questionBank.length - 1) {
+          currentQIndex++;
+          sendQuestion(currentQIndex);
+        } else {
+          log("All questions exhausted.");
+          broadcast(browsers, { type: "game_over", total: questionBank.length });
+        }
+      } else {
+        broadcast(browsers, { type: "next_question" });
+      }
       break;
 
     case "start_vote":
@@ -118,8 +251,10 @@ function handleHostMessage(msg) {
       break;
 
     case "set_category":
-      log("Category selected:", msg.category);
-      broadcast(browsers, { type: "category_selected", category: msg.category });
+      storedCategoryName = msg.category;
+      storedCategoryId   = msg.category_id ?? CATEGORY_ID_MAP[msg.category] ?? null;
+      log(`Category stored: "${storedCategoryName}" → OpenTDB ID ${storedCategoryId}`);
+      broadcast(browsers, { type: "category_selected", category: storedCategoryName });
       break;
   }
 }
@@ -147,6 +282,14 @@ function handleBuzzerPress(buzzer_id, timestamp) {
   roundWinner = buzzer_id;
   log(`*** Winner: Buzzer ${buzzer_id} (t=${timestamp}) ***`);
   broadcast(browsers, { type: "buzz", buzzer_id, timestamp });
+
+  // Tell the winning ESP32 to switch to ANSWER_MODE
+  const winnerWs = buzzerMap.get(buzzer_id);
+  if (winnerWs && winnerWs.readyState === winnerWs.OPEN) {
+    winnerWs.send(JSON.stringify({ type: "your_turn", buzzer_id }));
+    log(`Sent your_turn to Buzzer ${buzzer_id}.`);
+  }
+
   scheduleAutoReset();
 }
 
@@ -172,14 +315,23 @@ wss.on("connection", (ws) => {
         clientType = "browser";
         browsers.add(ws);
         log(`Browser/host connected. (${browsers.size} browser(s), ${buzzers.size} buzzer(s))`);
-        // Send current state so late-joining hosts are in sync
-        ws.send(JSON.stringify({ type: "state_sync", roundWinner, voteMode, voteCounts, voteCategories }));
+        // Send current state so late-joining hosts/players are in sync
+        ws.send(JSON.stringify({
+          type: "state_sync",
+          roundWinner,
+          voteMode, voteCounts, voteCategories,
+          questionIndex:     currentQIndex,
+          questionTotal:     questionBank.length,
+          currentQuestion:   currentQIndex >= 0 ? questionBank[currentQIndex] : null,
+          storedCategoryName,
+        }));
         return;
       }
       if (msg.buzzer_id !== undefined) {
         clientType = "buzzer";
         buzzerId   = msg.buzzer_id;
         buzzers.add(ws);
+        buzzerMap.set(buzzerId, ws);
         log(`Buzzer ${buzzerId} connected. (${browsers.size} browser(s), ${buzzers.size} buzzer(s))`);
         broadcast(browsers, { type: "player_joined", buzzer_id: buzzerId });
         // First message may also be a press — fall through.
@@ -205,6 +357,7 @@ wss.on("connection", (ws) => {
       log(`Browser/host disconnected. (${browsers.size} browser(s))`);
     } else if (clientType === "buzzer") {
       buzzers.delete(ws);
+      if (buzzerId !== null) buzzerMap.delete(buzzerId);
       log(`Buzzer ${buzzerId} disconnected. (${buzzers.size} buzzer(s))`);
       if (buzzerId !== null) {
         broadcast(browsers, { type: "player_left", buzzer_id: buzzerId });

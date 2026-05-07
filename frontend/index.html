@@ -8,19 +8,19 @@
   <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg:           #08001a;
-      --surface:      rgba(255,255,255,0.05);
-      --border:       rgba(255,255,255,0.1);
-      --yellow:       #FFE600;
-      --pink:         #FF006E;
-      --cyan:         #00D4FF;
-      --green:        #00FF88;
-      --ans-a:        #FF6B35;
-      --ans-b:        #00B4D8;
-      --ans-c:        #06D6A0;
-      --ans-d:        #9B5DE5;
-      --text:         #FFFFFF;
-      --muted:        rgba(255,255,255,0.55);
+      --bg:      #08001a;
+      --surface: rgba(255,255,255,0.05);
+      --border:  rgba(255,255,255,0.1);
+      --yellow:  #FFE600;
+      --pink:    #FF006E;
+      --cyan:    #00D4FF;
+      --green:   #00FF88;
+      --ans-a:   #FF6B35;
+      --ans-b:   #00B4D8;
+      --ans-c:   #06D6A0;
+      --ans-d:   #9B5DE5;
+      --text:    #FFFFFF;
+      --muted:   rgba(255,255,255,0.55);
     }
 
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -35,30 +35,27 @@
 
     body::before {
       content: '';
-      position: fixed;
-      inset: 0;
+      position: fixed; inset: 0;
       background:
         radial-gradient(ellipse at 15% 50%, rgba(0,212,255,0.07) 0%, transparent 55%),
         radial-gradient(ellipse at 85% 15%, rgba(255,0,110,0.07) 0%, transparent 55%),
         radial-gradient(ellipse at 50% 85%, rgba(155,93,229,0.07) 0%, transparent 55%);
-      pointer-events: none;
-      z-index: 0;
+      pointer-events: none; z-index: 0;
     }
 
-    /* ── Pages ─────────────────────────────────── */
+    /* ── Pages ─────────────────────────────────────── */
     .page { display: none; min-height: 100vh; position: relative; z-index: 1; }
     .page.active { display: flex; flex-direction: column; }
     #page-game.active { display: grid !important; }
 
-    /* ── Toast ─────────────────────────────────── */
+    /* ── Toast ─────────────────────────────────────── */
     #toasts {
-      position: fixed;
-      top: 1rem; right: 1rem;
+      position: fixed; top: 1rem; right: 1rem;
       display: flex; flex-direction: column; gap: .5rem;
       z-index: 9999; pointer-events: none;
     }
     .toast {
-      background: rgba(18,18,28,0.96);
+      background: rgba(18,18,28,.96);
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: .7rem 1.2rem;
@@ -69,20 +66,15 @@
     .toast.info    { border-left: 3px solid var(--cyan);  }
     .toast.success { border-left: 3px solid var(--green); }
     .toast.warn    { border-left: 3px solid var(--yellow);}
+    .toast.err     { border-left: 3px solid #ff5555;      }
     @keyframes slideIn {
       from { transform: translateX(110%); opacity: 0; }
       to   { transform: translateX(0);   opacity: 1; }
     }
 
-    /* ── Shared components ──────────────────────── */
-    .ws-indicator {
-      display: flex; align-items: center; gap: .5rem;
-      font-size: .82rem; color: var(--muted);
-    }
-    .ws-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: #555; transition: background .3s;
-    }
+    /* ── Shared ─────────────────────────────────────── */
+    .ws-indicator { display: flex; align-items: center; gap: .5rem; font-size: .82rem; color: var(--muted); }
+    .ws-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; transition: background .3s; }
     .ws-dot.on  { background: var(--green); box-shadow: 0 0 8px var(--green); }
     .ws-dot.off { background: #ff4444; }
 
@@ -95,362 +87,268 @@
     .btn:active:not(:disabled) { transform: translateY(0); }
     .btn:disabled { opacity: .3; cursor: not-allowed; }
 
-    /* ═══════════════════════════════════════════════
+    /* ═══════════════════════════════════════════════════
        LANDING
-    ═══════════════════════════════════════════════ */
-    #page-landing {
-      align-items: center;
-      justify-content: center;
-      gap: 1.8rem;
-      padding: 2rem;
-    }
+    ═══════════════════════════════════════════════════ */
+    #page-landing { align-items: center; justify-content: center; gap: 1.8rem; padding: 2rem; }
 
     .logo {
       font-family: 'Fredoka One', cursive;
-      font-size: clamp(4rem, 13vw, 9rem);
-      line-height: 1;
+      font-size: clamp(4rem, 13vw, 9rem); line-height: 1;
       background: linear-gradient(135deg, var(--yellow), var(--pink), var(--cyan));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
       animation: logoPulse 3s ease-in-out infinite;
     }
     @keyframes logoPulse {
       0%,100% { filter: drop-shadow(0 0 18px rgba(255,230,0,.45)); }
       50%      { filter: drop-shadow(0 0 38px rgba(255,0,110,.65)) drop-shadow(0 0 70px rgba(0,212,255,.3)); }
     }
-
-    .tagline {
-      font-size: 1.1rem; font-weight: 700;
-      letter-spacing: .3em; text-transform: uppercase;
-      color: var(--muted);
-    }
+    .tagline { font-size: 1.1rem; font-weight: 700; letter-spacing: .3em; text-transform: uppercase; color: var(--muted); }
 
     .landing-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 24px;
-      padding: 2.5rem 3rem;
-      display: flex; flex-direction: column; gap: 1.1rem;
-      min-width: 320px; max-width: 420px; width: 100%;
-      backdrop-filter: blur(20px);
+      background: var(--surface); border: 1px solid var(--border); border-radius: 24px;
+      padding: 2.5rem 3rem; display: flex; flex-direction: column; gap: 1.1rem;
+      min-width: 320px; max-width: 420px; width: 100%; backdrop-filter: blur(20px);
     }
-
-    .field-label {
-      font-size: .8rem; font-weight: 700;
-      letter-spacing: .22em; text-transform: uppercase;
-      color: var(--cyan);
-    }
-
+    .field-label { font-size: .8rem; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; color: var(--cyan); }
     .text-input {
-      background: rgba(255,255,255,.07);
-      border: 2px solid rgba(0,212,255,.3);
-      border-radius: 12px;
-      color: #fff;
-      font-family: 'Nunito', sans-serif;
-      font-size: 1.4rem; font-weight: 700;
-      padding: .75rem 1.2rem;
-      outline: none;
-      text-align: center;
-      letter-spacing: .18em;
-      transition: border-color .2s, box-shadow .2s;
-      width: 100%;
+      background: rgba(255,255,255,.07); border: 2px solid rgba(0,212,255,.3); border-radius: 12px;
+      color: #fff; font-family: 'Nunito', sans-serif; font-size: 1.4rem; font-weight: 700;
+      padding: .75rem 1.2rem; outline: none; text-align: center; letter-spacing: .18em;
+      transition: border-color .2s, box-shadow .2s; width: 100%;
     }
     .text-input::placeholder { color: rgba(255,255,255,.28); }
-    .text-input:focus {
-      border-color: var(--cyan);
-      box-shadow: 0 0 0 4px rgba(0,212,255,.14);
-    }
-
+    .text-input:focus { border-color: var(--cyan); box-shadow: 0 0 0 4px rgba(0,212,255,.14); }
     .btn-connect {
-      background: linear-gradient(135deg, var(--pink), #b800e0);
-      color: #fff;
-      font-size: 1.5rem;
-      padding: 1rem;
-      box-shadow: 0 4px 28px rgba(255,0,110,.38);
+      background: linear-gradient(135deg, var(--pink), #b800e0); color: #fff;
+      font-size: 1.5rem; padding: 1rem; box-shadow: 0 4px 28px rgba(255,0,110,.38);
     }
-    .btn-connect:hover:not(:disabled) {
-      box-shadow: 0 8px 40px rgba(255,0,110,.6);
-    }
-
+    .btn-connect:hover:not(:disabled) { box-shadow: 0 8px 40px rgba(255,0,110,.6); }
     .status-msg { font-size: .88rem; color: var(--muted); text-align: center; min-height: 1.3em; }
     .status-msg.err { color: #ff5555; }
     .status-msg.ok  { color: var(--green); }
 
-    /* ═══════════════════════════════════════════════
+    /* ═══════════════════════════════════════════════════
        LOBBY
-    ═══════════════════════════════════════════════ */
+    ═══════════════════════════════════════════════════ */
     #page-lobby { padding: 1.8rem; gap: 1.4rem; }
 
     .lobby-header {
-      display: flex; align-items: center;
-      justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;
     }
-
     .page-title {
-      font-family: 'Fredoka One', cursive;
-      font-size: 2.4rem;
+      font-family: 'Fredoka One', cursive; font-size: 2.4rem;
       background: linear-gradient(90deg, var(--yellow), var(--pink));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     }
-
     .room-badge {
-      background: rgba(0,212,255,.12);
-      border: 1px solid rgba(0,212,255,.35);
-      border-radius: 999px;
-      padding: .35rem 1.1rem;
-      font-weight: 700; font-size: .85rem;
-      color: var(--cyan); letter-spacing: .1em;
+      background: rgba(0,212,255,.12); border: 1px solid rgba(0,212,255,.35);
+      border-radius: 999px; padding: .35rem 1.1rem;
+      font-weight: 700; font-size: .85rem; color: var(--cyan); letter-spacing: .1em;
     }
 
+    /* Buzzer grid */
     .buzzer-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-      gap: 1rem;
-      flex: 1;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 1rem;
     }
-
     .buzzer-card {
-      background: var(--surface);
-      border: 2px solid var(--border);
-      border-radius: 18px;
-      padding: 1.5rem;
-      display: flex; flex-direction: column;
-      align-items: center; gap: .9rem;
+      background: var(--surface); border: 2px solid var(--border); border-radius: 18px;
+      padding: 1.3rem; display: flex; flex-direction: column; align-items: center; gap: .7rem;
       animation: popIn .35s cubic-bezier(.175,.885,.32,1.275) both;
     }
-    .buzzer-card.on {
-      border-color: var(--green);
-      box-shadow: 0 0 22px rgba(0,255,136,.18);
-    }
-    @keyframes popIn {
-      from { opacity: 0; transform: scale(.75); }
-      to   { opacity: 1; transform: scale(1); }
-    }
-
-    .buzzer-emoji { font-size: 2.8rem; line-height: 1; }
+    .buzzer-card.on { border-color: var(--green); box-shadow: 0 0 22px rgba(0,255,136,.18); }
+    @keyframes popIn { from { opacity: 0; transform: scale(.75); } to { opacity: 1; transform: scale(1); } }
+    .buzzer-emoji { font-size: 2.5rem; line-height: 1; }
     .buzzer-id-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .2em; color: var(--muted); }
-
     .name-input {
-      background: rgba(255,255,255,.07);
-      border: 1px solid rgba(255,255,255,.18);
-      border-radius: 8px;
-      color: #fff;
-      font-family: 'Nunito', sans-serif;
-      font-size: 1rem; font-weight: 700;
-      padding: .38rem .6rem;
-      outline: none; text-align: center; width: 100%;
-      transition: border-color .2s;
+      background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.18); border-radius: 8px;
+      color: #fff; font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 700;
+      padding: .38rem .6rem; outline: none; text-align: center; width: 100%; transition: border-color .2s;
     }
     .name-input:focus { border-color: var(--yellow); }
 
-    .lobby-empty {
-      grid-column: 1 / -1;
-      text-align: center; padding: 4rem 2rem;
-      color: var(--muted);
+    /* Vote badge on player card */
+    .vote-badge {
+      font-family: 'Fredoka One', cursive; font-size: 1.6rem; line-height: 1;
+      min-height: 1.8rem; display: flex; align-items: center; justify-content: center;
     }
+    .vote-badge[data-choice="A"] { color: var(--ans-a); }
+    .vote-badge[data-choice="B"] { color: var(--ans-b); }
+    .vote-badge[data-choice="C"] { color: var(--ans-c); }
+    .vote-badge[data-choice="D"] { color: var(--ans-d); }
+
+    .lobby-empty { grid-column: 1/-1; text-align: center; padding: 3rem 2rem; color: var(--muted); }
     .lobby-empty .icon { font-size: 3.5rem; display: block; margin-bottom: 1rem; }
 
-    .lobby-footer { display: flex; justify-content: flex-end; }
-
-    .btn-start {
-      background: linear-gradient(135deg, var(--green), #00b855);
-      color: #000;
-      font-size: 1.35rem;
-      padding: .85rem 2.4rem;
-      box-shadow: 0 4px 28px rgba(0,255,136,.28);
+    /* ── Category vote section ───────────────────────── */
+    .cat-vote-section {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 1.4rem 1.6rem;
     }
-    .btn-start:hover:not(:disabled) { box-shadow: 0 8px 38px rgba(0,255,136,.5); }
+    .cvs-header {
+      font-family: 'Fredoka One', cursive; font-size: 1.5rem; color: var(--yellow);
+      text-align: center; margin-bottom: 1rem; letter-spacing: .05em;
+    }
+    .cvs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; }
+    .cvs-card {
+      background: rgba(255,255,255,.04); border: 2px solid var(--border);
+      border-radius: 14px; padding: 1rem;
+      display: flex; flex-direction: column; align-items: center; gap: .5rem;
+      text-align: center; transition: border-color .3s, box-shadow .3s, background .3s;
+    }
+    .cvs-card.winner {
+      background: rgba(255,230,0,.1); border-color: var(--yellow);
+      box-shadow: 0 0 28px rgba(255,230,0,.25);
+    }
+    .cvs-letter { font-family: 'Fredoka One', cursive; font-size: 2rem; line-height: 1; }
+    .cvs-name   { font-size: 1rem; font-weight: 700; }
+    .cvs-voters { display: flex; flex-wrap: wrap; gap: .35rem; justify-content: center; margin-top: .3rem; min-height: 1.4rem; }
+    .voter-chip {
+      background: rgba(255,255,255,.12); border-radius: 999px;
+      padding: .15rem .55rem; font-size: .75rem; font-weight: 700;
+    }
 
-    /* ═══════════════════════════════════════════════
+    /* ═══════════════════════════════════════════════════
        GAME
-    ═══════════════════════════════════════════════ */
+    ═══════════════════════════════════════════════════ */
     #page-game {
       grid-template-rows: auto 1fr auto;
       grid-template-columns: 1fr 300px;
-      grid-template-areas:
-        "hdr   hdr"
-        "main  board"
-        "ctrl  ctrl";
+      grid-template-areas: "hdr hdr" "main board" "ctrl ctrl";
       min-height: 100vh;
     }
 
-    /* Header */
     .game-hdr {
-      grid-area: hdr;
-      background: rgba(0,0,0,.45);
+      grid-area: hdr; background: rgba(0,0,0,.45);
       border-bottom: 1px solid var(--border);
-      display: flex; align-items: center;
-      justify-content: space-between;
+      display: flex; align-items: center; justify-content: space-between;
       padding: .9rem 1.6rem; gap: 1rem;
     }
     .game-logo {
-      font-family: 'Fredoka One', cursive;
-      font-size: 1.75rem;
+      font-family: 'Fredoka One', cursive; font-size: 1.75rem;
       background: linear-gradient(90deg, var(--yellow), var(--pink));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     }
     .q-counter { font-weight: 700; font-size: .88rem; color: var(--muted); }
 
-    /* Main area */
     .game-main {
-      grid-area: main;
-      padding: 1.8rem;
+      grid-area: main; padding: 1.8rem;
       display: flex; flex-direction: column; gap: 1.4rem;
-      overflow-y: auto;
+      overflow-y: auto; position: relative;
     }
+
+    /* Countdown timer — appears fixed in the main area */
+    .countdown-ring {
+      position: absolute; top: 1.6rem; right: 1.6rem;
+      width: 110px; height: 110px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Fredoka One', cursive; font-size: 3rem;
+      border: 4px solid;
+      transition: border-color .5s, color .5s, background .5s;
+      animation: ringAppear .4s cubic-bezier(.175,.885,.32,1.275);
+      z-index: 10;
+    }
+    @keyframes ringAppear {
+      from { transform: scale(.5); opacity: 0; }
+      to   { transform: scale(1);  opacity: 1; }
+    }
+    .countdown-ring.warning {
+      color: var(--amber, #f59e0b); border-color: var(--amber, #f59e0b);
+      background: rgba(245,158,11,.1);
+    }
+    .countdown-ring.urgent {
+      color: #ef4444; border-color: #ef4444;
+      background: rgba(239,68,68,.12);
+      animation: ringAppear .4s cubic-bezier(.175,.885,.32,1.275), urgentPulse .6s ease infinite alternate;
+    }
+    @keyframes urgentPulse { to { transform: scale(1.06); } }
 
     .question-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 1.8rem 2rem;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 1.8rem 2rem;
+      padding-right: 140px; /* leave room for countdown ring */
     }
-    .q-label {
-      font-size: .75rem; font-weight: 700;
-      letter-spacing: .3em; text-transform: uppercase;
-      color: var(--cyan); margin-bottom: .7rem;
-    }
-    .q-text {
-      font-size: clamp(1.25rem, 2.4vw, 1.85rem);
-      font-weight: 900; line-height: 1.45;
-    }
+    .q-label { font-size: .75rem; font-weight: 700; letter-spacing: .3em; text-transform: uppercase; color: var(--cyan); margin-bottom: .7rem; }
+    .q-text  { font-size: clamp(1.25rem, 2.4vw, 1.85rem); font-weight: 900; line-height: 1.45; }
 
-    .answers-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-    }
-
+    .answers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
     .ans-btn {
-      background: rgba(255,255,255,.04);
-      border: 2px solid;
-      border-radius: 16px;
-      color: #fff;
-      cursor: pointer;
-      display: flex; align-items: center; gap: 1rem;
-      padding: 1.1rem 1.4rem;
-      font-family: 'Nunito', sans-serif;
-      font-size: 1.02rem; font-weight: 700;
-      text-align: left;
-      transition: transform .14s, background .15s, box-shadow .15s;
+      background: rgba(255,255,255,.04); border: 2px solid; border-radius: 16px; color: #fff;
+      cursor: default; display: flex; align-items: center; gap: 1rem;
+      padding: 1.1rem 1.4rem; font-family: 'Nunito', sans-serif;
+      font-size: 1.02rem; font-weight: 700; text-align: left;
+      transition: background .15s, box-shadow .15s;
     }
-    .ans-btn:hover { transform: translateY(-2px); }
     .ans-btn[data-opt="A"] { border-color: var(--ans-a); }
-    .ans-btn[data-opt="A"]:hover { background: rgba(255,107,53,.18); box-shadow: 0 4px 18px rgba(255,107,53,.28); }
     .ans-btn[data-opt="B"] { border-color: var(--ans-b); }
-    .ans-btn[data-opt="B"]:hover { background: rgba(0,180,216,.18); box-shadow: 0 4px 18px rgba(0,180,216,.28); }
     .ans-btn[data-opt="C"] { border-color: var(--ans-c); }
-    .ans-btn[data-opt="C"]:hover { background: rgba(6,214,160,.18); box-shadow: 0 4px 18px rgba(6,214,160,.28); }
     .ans-btn[data-opt="D"] { border-color: var(--ans-d); }
-    .ans-btn[data-opt="D"]:hover { background: rgba(155,93,229,.18); box-shadow: 0 4px 18px rgba(155,93,229,.28); }
-
     .ans-btn.correct { background: rgba(0,255,136,.22) !important; border-color: var(--green) !important; }
-    .ans-btn.wrong   { background: rgba(255,68,68,.1)  !important; border-color: #ff4444  !important; opacity: .45; }
-
-    .ans-letter {
-      font-family: 'Fredoka One', cursive;
-      font-size: 1.45rem; min-width: 1.8rem; text-align: center;
-    }
+    .ans-btn.wrong   { background: rgba(255,68,68,.1)  !important; border-color: #ff4444  !important; opacity: .4; }
+    .ans-letter { font-family: 'Fredoka One', cursive; font-size: 1.45rem; min-width: 1.8rem; text-align: center; }
     .ans-btn[data-opt="A"] .ans-letter { color: var(--ans-a); }
     .ans-btn[data-opt="B"] .ans-letter { color: var(--ans-b); }
     .ans-btn[data-opt="C"] .ans-letter { color: var(--ans-c); }
     .ans-btn[data-opt="D"] .ans-letter { color: var(--ans-d); }
 
     /* Buzz result */
-    .buzz-result {
-      border-radius: 20px; padding: 1.4rem;
-      text-align: center; transition: all .4s;
-    }
-    .buzz-result.idle {
-      background: rgba(255,255,255,.03);
-      border: 2px dashed rgba(255,255,255,.13);
-    }
+    .buzz-result { border-radius: 20px; padding: 1.4rem; text-align: center; transition: all .4s; }
+    .buzz-result.idle { background: rgba(255,255,255,.03); border: 2px dashed rgba(255,255,255,.13); }
     .buzz-result.live {
       background: linear-gradient(135deg, rgba(255,230,0,.12), rgba(255,0,110,.12));
-      border: 2px solid var(--yellow);
-      box-shadow: 0 0 36px rgba(255,230,0,.28);
+      border: 2px solid var(--yellow); box-shadow: 0 0 36px rgba(255,230,0,.28);
       animation: buzzPop .5s cubic-bezier(.175,.885,.32,1.275);
     }
-    @keyframes buzzPop {
-      0%  { transform: scale(.82); opacity: 0; }
-      60% { transform: scale(1.05); }
-      100%{ transform: scale(1);   opacity: 1; }
-    }
+    @keyframes buzzPop { 0%{transform:scale(.82);opacity:0;} 60%{transform:scale(1.05);} 100%{transform:scale(1);opacity:1;} }
     .buzz-idle-text { color: var(--muted); font-weight: 700; }
-    .buzz-label { font-size: .75rem; letter-spacing: .3em; text-transform: uppercase; color: var(--yellow); font-weight: 700; margin-bottom: .35rem; }
+    .buzz-label     { font-size: .75rem; letter-spacing: .3em; text-transform: uppercase; color: var(--yellow); font-weight: 700; margin-bottom: .35rem; }
     .buzz-lightning { font-size: 2rem; animation: zap .45s ease; }
-    @keyframes zap {
-      from { transform: rotate(-25deg) scale(1.6); }
-      to   { transform: rotate(0)      scale(1); }
-    }
+    @keyframes zap { from{transform:rotate(-25deg) scale(1.6);} to{transform:rotate(0) scale(1);} }
     .buzz-name {
-      font-family: 'Fredoka One', cursive;
-      font-size: clamp(1.9rem, 4vw, 2.9rem);
+      font-family: 'Fredoka One', cursive; font-size: clamp(1.9rem, 4vw, 2.9rem);
       background: linear-gradient(90deg, var(--yellow), var(--pink));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     }
     .buzz-ts { font-size: .82rem; color: var(--muted); margin-top: .25rem; }
 
-    /* Leaderboard sidebar */
+    /* Leaderboard */
     .game-board {
-      grid-area: board;
-      background: rgba(0,0,0,.3);
+      grid-area: board; background: rgba(0,0,0,.3);
       border-left: 1px solid var(--border);
-      padding: 1.4rem;
-      display: flex; flex-direction: column; gap: .9rem;
-      overflow-y: auto;
+      padding: 1.4rem; display: flex; flex-direction: column; gap: .9rem; overflow-y: auto;
     }
-    .board-title {
-      font-family: 'Fredoka One', cursive;
-      font-size: 1.35rem; color: var(--yellow);
-      text-align: center; letter-spacing: .05em;
-    }
+    .board-title { font-family: 'Fredoka One', cursive; font-size: 1.35rem; color: var(--yellow); text-align: center; }
     .leaderboard { display: flex; flex-direction: column; gap: .45rem; }
-    .lb-row {
-      background: var(--surface);
-      border-radius: 10px;
-      display: flex; align-items: center; gap: .75rem;
-      padding: .65rem .9rem;
-      transition: background .3s;
-    }
-    .lb-row.gold {
-      background: linear-gradient(90deg, rgba(255,230,0,.14), rgba(255,0,110,.08));
-      border: 1px solid rgba(255,230,0,.28);
-    }
-    .lb-rank { font-family: 'Fredoka One', cursive; font-size: 1.15rem; min-width: 1.5rem; text-align: center; }
-    .lb-name { flex: 1; font-weight: 700; font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lb-row { background: var(--surface); border-radius: 10px; display: flex; align-items: center; gap: .75rem; padding: .65rem .9rem; }
+    .lb-row.gold { background: linear-gradient(90deg, rgba(255,230,0,.14), rgba(255,0,110,.08)); border: 1px solid rgba(255,230,0,.28); }
+    .lb-rank  { font-family: 'Fredoka One', cursive; font-size: 1.15rem; min-width: 1.5rem; text-align: center; }
+    .lb-name  { flex: 1; font-weight: 700; font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .lb-score { font-family: 'Fredoka One', cursive; font-size: 1.25rem; color: var(--cyan); }
     .lb-empty { text-align: center; color: var(--muted); font-size: .88rem; padding: 1rem; }
 
-    /* Controls footer */
+    /* Controls */
     .game-ctrl {
-      grid-area: ctrl;
-      background: rgba(0,0,0,.42);
-      border-top: 1px solid var(--border);
-      padding: .9rem 1.5rem;
-      display: flex; align-items: center; gap: .85rem; flex-wrap: wrap;
+      grid-area: ctrl; background: rgba(0,0,0,.42); border-top: 1px solid var(--border);
+      padding: .9rem 1.5rem; display: flex; align-items: center; gap: .85rem; flex-wrap: wrap;
     }
     .btn-correct { background: linear-gradient(135deg,#00c853,#00e676); color:#000; font-size:1.05rem; padding:.65rem 1.4rem; box-shadow:0 4px 18px rgba(0,200,83,.3); }
     .btn-wrong   { background: linear-gradient(135deg,#d50000,#ff1744); color:#fff; font-size:1.05rem; padding:.65rem 1.4rem; box-shadow:0 4px 18px rgba(213,0,0,.3); }
-    .btn-next    { background: linear-gradient(135deg,var(--cyan),#0077ff); color:#fff; font-size:1.05rem; padding:.65rem 1.8rem; box-shadow:0 4px 18px rgba(0,212,255,.3); margin-left: auto; }
+    .btn-next    { background: linear-gradient(135deg,var(--cyan),#0077ff); color:#fff; font-size:1.05rem; padding:.65rem 1.8rem; box-shadow:0 4px 18px rgba(0,212,255,.3); margin-left:auto; }
     .btn-exit    { background: rgba(255,255,255,.08); color: var(--muted); font-size:1.05rem; padding:.65rem 1.2rem; }
+
+    /* Loading overlay */
+    .loading-msg {
+      text-align: center; padding: 2rem; color: var(--muted);
+      font-family: 'Fredoka One', cursive; font-size: 1.3rem; letter-spacing: .05em;
+    }
 
     /* Responsive */
     @media (max-width: 700px) {
-      #page-game {
-        grid-template-columns: 1fr;
-        grid-template-rows: auto 1fr auto auto;
-        grid-template-areas: "hdr" "main" "board" "ctrl";
-      }
+      #page-game { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto auto; grid-template-areas: "hdr" "main" "board" "ctrl"; }
       .game-board { border-left: none; border-top: 1px solid var(--border); max-height: 260px; }
       .answers-grid { grid-template-columns: 1fr; }
+      .question-card { padding-right: 1.8rem; }
+      .countdown-ring { position: fixed; top: .8rem; right: .8rem; width: 80px; height: 80px; font-size: 2.2rem; }
     }
   </style>
 </head>
@@ -462,7 +360,6 @@
 <div id="page-landing" class="page active">
   <div class="logo">QuizBuzz</div>
   <div class="tagline">Live Trivia · Press Fast · Win Big</div>
-
   <div class="landing-card">
     <label class="field-label" for="room-input">Room Code</label>
     <input class="text-input" id="room-input" type="text"
@@ -485,16 +382,20 @@
     </div>
   </div>
 
+  <!-- Category vote section — shown when host starts a vote -->
+  <div class="cat-vote-section" id="cat-vote-section" style="display:none">
+    <div class="cvs-header">🗳 VOTE FOR A CATEGORY</div>
+    <div class="cvs-grid" id="cvs-grid">
+      <!-- populated dynamically -->
+    </div>
+  </div>
+
   <div class="buzzer-grid" id="buzzer-grid">
     <div class="lobby-empty" id="lobby-empty">
       <span class="icon">🎮</span>
       Waiting for buzzers to connect…<br>
       <small style="display:block;margin-top:.5rem;opacity:.45;">ESP32 devices will appear here automatically</small>
     </div>
-  </div>
-
-  <div class="lobby-footer">
-    <button class="btn btn-start" id="btn-start" disabled>START GAME ▶</button>
   </div>
 </div>
 
@@ -503,36 +404,26 @@
 
   <header class="game-hdr">
     <div class="game-logo">QuizBuzz</div>
-    <div class="q-counter" id="q-counter">Question 1 of 10</div>
+    <div class="q-counter" id="q-counter">—</div>
     <div class="ws-indicator">
       <div class="ws-dot" id="game-dot"></div>
       <span id="game-ws-text">Disconnected</span>
     </div>
   </header>
 
-  <main class="game-main">
+  <main class="game-main" id="game-main">
+    <!-- Countdown ring — inserted/removed by JS -->
+
     <div class="question-card">
-      <div class="q-label" id="q-label">QUESTION 1</div>
-      <div class="q-text"  id="q-text">Loading…</div>
+      <div class="q-label" id="q-label">QUESTION —</div>
+      <div class="q-text"  id="q-text">Waiting for question…</div>
     </div>
 
     <div class="answers-grid">
-      <button class="ans-btn" data-opt="A">
-        <span class="ans-letter">A</span>
-        <span id="ans-A">—</span>
-      </button>
-      <button class="ans-btn" data-opt="B">
-        <span class="ans-letter">B</span>
-        <span id="ans-B">—</span>
-      </button>
-      <button class="ans-btn" data-opt="C">
-        <span class="ans-letter">C</span>
-        <span id="ans-C">—</span>
-      </button>
-      <button class="ans-btn" data-opt="D">
-        <span class="ans-letter">D</span>
-        <span id="ans-D">—</span>
-      </button>
+      <div class="ans-btn" data-opt="A"><span class="ans-letter">A</span><span id="ans-A">—</span></div>
+      <div class="ans-btn" data-opt="B"><span class="ans-letter">B</span><span id="ans-B">—</span></div>
+      <div class="ans-btn" data-opt="C"><span class="ans-letter">C</span><span id="ans-C">—</span></div>
+      <div class="ans-btn" data-opt="D"><span class="ans-letter">D</span><span id="ans-D">—</span></div>
     </div>
 
     <div class="buzz-result idle" id="buzz-result">
@@ -563,49 +454,22 @@
 const WS_URL = "ws://192.168.10.168:8080";
 
 // ─────────────────────────────────────────────────────────────
-// BUILT-IN QUESTIONS  (replace or extend freely)
-// ─────────────────────────────────────────────────────────────
-const QUESTIONS = [
-  { q: "What is the capital city of Australia?",
-    opts: ["Sydney","Melbourne","Canberra","Brisbane"], ans: "C" },
-  { q: "How many sides does a hexagon have?",
-    opts: ["5","6","7","8"], ans: "B" },
-  { q: "Which planet is known as the Red Planet?",
-    opts: ["Venus","Jupiter","Saturn","Mars"], ans: "D" },
-  { q: "Who painted the Mona Lisa?",
-    opts: ["Michelangelo","Raphael","Leonardo da Vinci","Donatello"], ans: "C" },
-  { q: "What is the chemical symbol for gold?",
-    opts: ["Go","Gd","Ag","Au"], ans: "D" },
-  { q: "In what year did the first iPhone launch?",
-    opts: ["2005","2006","2007","2008"], ans: "C" },
-  { q: "What is the fastest land animal?",
-    opts: ["Lion","Cheetah","Pronghorn","Greyhound"], ans: "B" },
-  { q: "How many bones are in the adult human body?",
-    opts: ["196","206","216","226"], ans: "B" },
-  { q: "Which element has the atomic number 1?",
-    opts: ["Helium","Oxygen","Carbon","Hydrogen"], ans: "D" },
-  { q: "What is the longest river in the world?",
-    opts: ["Amazon","Yangtze","Mississippi","Nile"], ans: "D" },
-];
-
-// ─────────────────────────────────────────────────────────────
 // STATE
 // ─────────────────────────────────────────────────────────────
-let socket      = null;
-let roomCode    = "";
-let players     = {};   // { id: { name, score } }
-let currentQ    = 0;
-let roundWinner = null; // buzzer_id of first buzz this round
-let judged      = false; // whether correct/wrong clicked after buzz
+let socket             = null;
+let roomCode           = "";
+let players            = {};      // { id: { name, score } }
+let roundWinner        = null;    // buzzer_id of current round winner
+let judged             = false;   // host has clicked correct/wrong
+let serverCorrectIndex = null;    // correct answer index from server question
+let countdownTimer     = null;
+let countdownVal       = 59;
 
 // ─────────────────────────────────────────────────────────────
 // UTILITIES
 // ─────────────────────────────────────────────────────────────
 function showPage(id) {
-  document.querySelectorAll(".page").forEach(p => {
-    p.classList.remove("active");
-    p.style.display = "";
-  });
+  document.querySelectorAll(".page").forEach(p => { p.classList.remove("active"); p.style.display = ""; });
   const el = document.getElementById(id);
   el.classList.add("active");
   if (id === "page-game") el.style.display = "grid";
@@ -620,11 +484,10 @@ function toast(msg, type = "info") {
 }
 
 function setWsStatus(state) {
-  // state: "on" | "off" | "loading"
   const label = state === "on" ? "Connected" : state === "loading" ? "Connecting…" : "Disconnected";
   ["lobby-dot","game-dot"].forEach(id => {
     const d = document.getElementById(id);
-    if (d) { d.className = "ws-dot " + (state === "on" ? "on" : state === "off" ? "off" : ""); }
+    if (d) d.className = "ws-dot " + (state === "on" ? "on" : state === "off" ? "off" : "");
   });
   const lt = document.getElementById("lobby-ws-text");
   const gt = document.getElementById("game-ws-text");
@@ -632,19 +495,14 @@ function setWsStatus(state) {
   if (gt) gt.textContent = label;
 }
 
-function playerName(id) {
-  return players[id]?.name || `Buzzer ${id}`;
+function playerName(id) { return players[id]?.name || `Buzzer ${id}`; }
+
+function send(obj) {
+  if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(obj));
 }
 
 // ─────────────────────────────────────────────────────────────
 // WEBSOCKET
-// Expected server → browser messages:
-//   { type: "player_joined", buzzer_id }
-//   { type: "player_left",   buzzer_id }
-//   { type: "buzz",          buzzer_id, timestamp }   ← winner
-//   { type: "round_reset" }
-//
-// Fallback: raw { buzzer_id, timestamp } (current server.js behaviour)
 // ─────────────────────────────────────────────────────────────
 function connectWS(room) {
   const statusEl = document.getElementById("connect-status");
@@ -670,29 +528,47 @@ function connectWS(room) {
     handleMessage(msg);
   });
 
-  socket.addEventListener("close", () => {
-    setWsStatus("off");
-    toast("Server disconnected", "warn");
-  });
-
+  socket.addEventListener("close", () => { setWsStatus("off"); toast("Server disconnected", "warn"); });
   socket.addEventListener("error", () => {
-    statusEl.textContent = "Connection failed — check the server address";
-    statusEl.className = "status-msg err";
+    document.getElementById("connect-status").textContent = "Connection failed — check server address";
+    document.getElementById("connect-status").className = "status-msg err";
     setWsStatus("off");
   });
 }
 
+// ─────────────────────────────────────────────────────────────
+// MESSAGE HANDLER
+// ─────────────────────────────────────────────────────────────
 function handleMessage(msg) {
   switch (msg.type) {
-    case "player_joined": addPlayer(msg.buzzer_id);           break;
-    case "player_left":   removePlayer(msg.buzzer_id);        break;
-    case "buzz":          onBuzz(msg.buzzer_id, msg.timestamp); break;
-    case "round_reset":   clearBuzz();                        break;
+    case "player_joined":    addPlayer(msg.buzzer_id);              break;
+    case "player_left":      removePlayer(msg.buzzer_id);           break;
+    case "buzz":             onBuzz(msg.buzzer_id, msg.timestamp);  break;
+    case "round_reset":      clearBuzz();                           break;
+    case "question":         onQuestion(msg);                       break;
+    case "category_vote":    onCategoryVote(msg);                   break;
+    case "vote_update":      onVoteUpdate(msg);                     break;
+    case "vote_end":         onVoteEnd(msg);                        break;
+    case "game_over":        onGameOver(msg);                       break;
+    case "loading":          toast(msg.message, "info");            break;
+    case "error":            toast(msg.message, "err");             break;
+    case "category_selected":
+      toast(`Category: ${msg.category}`, "info");
+      break;
+    case "state_sync":
+      // Restore mid-game question if rejoining
+      if (msg.currentQuestion) onQuestion({
+        index:    msg.questionIndex,
+        total:    msg.questionTotal,
+        question: msg.currentQuestion.question,
+        options:  msg.currentQuestion.options,
+        correct:  msg.currentQuestion.correct,
+      });
+      if (msg.voteMode) onCategoryVote({ categories: msg.voteCategories, counts: msg.voteCounts });
+      break;
     default:
-      // Raw buzzer press forwarded by current server.js
-      if (msg.buzzer_id !== undefined && msg.timestamp !== undefined) {
-        onBuzz(msg.buzzer_id, msg.timestamp);
-      }
+      // Fallback: raw buzzer press
+      if (msg.buzzer_id !== undefined && msg.timestamp !== undefined) onBuzz(msg.buzzer_id, msg.timestamp);
   }
 }
 
@@ -704,7 +580,6 @@ function addPlayer(id) {
   players[id] = { name: `Buzzer ${id}`, score: 0 };
   renderLobby();
   renderLeaderboard();
-  updateStartBtn();
   toast(`Buzzer ${id} connected 🎮`, "success");
 }
 
@@ -712,17 +587,9 @@ function removePlayer(id) {
   delete players[id];
   renderLobby();
   renderLeaderboard();
-  updateStartBtn();
   toast(`Buzzer ${id} disconnected`, "warn");
 }
 
-function updateStartBtn() {
-  document.getElementById("btn-start").disabled = Object.keys(players).length === 0;
-}
-
-// ─────────────────────────────────────────────────────────────
-// LOBBY RENDER
-// ─────────────────────────────────────────────────────────────
 function renderLobby() {
   const grid  = document.getElementById("buzzer-grid");
   const empty = document.getElementById("lobby-empty");
@@ -730,10 +597,7 @@ function renderLobby() {
 
   empty.style.display = ids.length ? "none" : "";
 
-  // Remove stale cards
-  grid.querySelectorAll(".buzzer-card").forEach(c => {
-    if (!players[c.dataset.id]) c.remove();
-  });
+  grid.querySelectorAll(".buzzer-card").forEach(c => { if (!players[c.dataset.id]) c.remove(); });
 
   ids.forEach(id => {
     if (grid.querySelector(`.buzzer-card[data-id="${id}"]`)) return;
@@ -744,6 +608,7 @@ function renderLobby() {
       <div class="buzzer-emoji">🎯</div>
       <div class="buzzer-id-label">Buzzer ${id}</div>
       <input class="name-input" type="text" placeholder="Player name" value="${players[id].name}">
+      <div class="vote-badge" id="vote-badge-${id}"></div>
     `;
     card.querySelector("input").addEventListener("input", e => {
       players[id].name = e.target.value.trim() || `Buzzer ${id}`;
@@ -754,27 +619,139 @@ function renderLobby() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// GAME
+// CATEGORY VOTE
 // ─────────────────────────────────────────────────────────────
-function loadQuestion(i) {
-  const q = QUESTIONS[i];
-  if (!q) return;
+function onCategoryVote(msg) {
+  const cats    = msg.categories || [];
+  const counts  = msg.counts    || {};
+  const opts    = ["A","B","C","D"];
+  const colors  = ["var(--ans-a)","var(--ans-b)","var(--ans-c)","var(--ans-d)"];
 
-  roundWinner = null;
-  judged      = false;
+  const section = document.getElementById("cat-vote-section");
+  section.style.display = "";
 
-  document.getElementById("q-label").textContent   = `QUESTION ${i + 1}`;
-  document.getElementById("q-text").textContent    = q.q;
-  document.getElementById("q-counter").textContent = `Question ${i + 1} of ${QUESTIONS.length}`;
-  ["A","B","C","D"].forEach((opt, idx) => {
-    document.getElementById(`ans-${opt}`).textContent = q.opts[idx];
+  const grid = document.getElementById("cvs-grid");
+  grid.innerHTML = cats.map((name, i) => `
+    <div class="cvs-card" id="cvs-card-${opts[i]}">
+      <div class="cvs-letter" style="color:${colors[i]}">${opts[i]}</div>
+      <div class="cvs-name">${name}</div>
+      <div class="cvs-voters" id="cvs-voters-${opts[i]}"></div>
+    </div>
+  `).join("");
+
+  // Apply any existing vote counts (e.g. state_sync on rejoin)
+  if (counts) {
+    Object.entries(counts).forEach(([opt, n]) => {
+      const el = document.getElementById(`cvs-voters-${opt}`);
+      if (el && n > 0) el.textContent = `${n} vote${n !== 1 ? "s" : ""}`;
+    });
+  }
+
+  // Make sure we're in lobby
+  if (!document.getElementById("page-lobby").classList.contains("active")) showPage("page-lobby");
+}
+
+function onVoteUpdate(msg) {
+  const { buzzer_id, choice } = msg;
+
+  // Add voter chip to the category card
+  const voters = document.getElementById(`cvs-voters-${choice}`);
+  if (voters && !voters.querySelector(`[data-voter="${buzzer_id}"]`)) {
+    const chip = document.createElement("div");
+    chip.className = "voter-chip";
+    chip.dataset.voter = buzzer_id;
+    chip.textContent = playerName(buzzer_id);
+    voters.appendChild(chip);
+  }
+
+  // Show choice on the player's card
+  const badge = document.getElementById(`vote-badge-${buzzer_id}`);
+  if (badge) { badge.textContent = choice; badge.dataset.choice = choice; }
+}
+
+function onVoteEnd(msg) {
+  const counts = msg.counts || {};
+  const max    = Math.max(...Object.values(counts), 0);
+  if (max === 0) return;
+  Object.entries(counts).forEach(([opt, n]) => {
+    const card = document.getElementById(`cvs-card-${opt}`);
+    if (card && n === max) card.classList.add("winner");
   });
+}
+
+// ─────────────────────────────────────────────────────────────
+// QUESTION
+// ─────────────────────────────────────────────────────────────
+function onQuestion(msg) {
+  serverCorrectIndex = msg.correct;
+  roundWinner        = null;
+  judged             = false;
+
+  document.getElementById("q-label").textContent   = `QUESTION ${msg.index + 1}`;
+  document.getElementById("q-text").textContent    = msg.question;
+  document.getElementById("q-counter").textContent = `Question ${msg.index + 1} of ${msg.total}`;
+  ["A","B","C","D"].forEach((opt, i) => { document.getElementById(`ans-${opt}`).textContent = msg.options[i] ?? "—"; });
 
   document.querySelectorAll(".ans-btn").forEach(b => b.classList.remove("correct","wrong"));
   clearBuzz();
   setJudgeEnabled(false);
+
+  // Hide vote section and navigate to game
+  document.getElementById("cat-vote-section").style.display = "none";
+  showPage("page-game");
+  startCountdown();
 }
 
+function onGameOver(msg) {
+  stopCountdown();
+  clearBuzz();
+  toast(`Game over! ${msg.total} questions answered.`, "success");
+}
+
+// ─────────────────────────────────────────────────────────────
+// COUNTDOWN TIMER
+// Runs from 59→0; ring appears only when ≤ 10
+// ─────────────────────────────────────────────────────────────
+function startCountdown() {
+  stopCountdown();
+  countdownVal = 59;
+  countdownTimer = setInterval(() => {
+    countdownVal--;
+    renderCountdown();
+    if (countdownVal <= 0) stopCountdown();
+  }, 1000);
+}
+
+function stopCountdown() {
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+  const ring = document.getElementById("countdown-ring");
+  if (ring) ring.remove();
+}
+
+function renderCountdown() {
+  const main = document.getElementById("game-main");
+  if (!main) return;
+  let ring = document.getElementById("countdown-ring");
+
+  if (countdownVal <= 10 && countdownVal > 0) {
+    if (!ring) {
+      ring = document.createElement("div");
+      ring.id = "countdown-ring";
+      ring.className = "countdown-ring";
+      main.appendChild(ring);
+    }
+    ring.textContent = countdownVal;
+    ring.className   = "countdown-ring " + (countdownVal <= 5 ? "urgent" : "warning");
+  } else if (countdownVal === 0) {
+    if (ring) { ring.textContent = "0"; setTimeout(() => ring?.remove(), 800); }
+  } else {
+    if (ring) ring.remove();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// BUZZ RESULT
+// ─────────────────────────────────────────────────────────────
 function onBuzz(buzzerId, timestamp) {
   if (roundWinner !== null) return;
   roundWinner = buzzerId;
@@ -794,7 +771,6 @@ function onBuzz(buzzerId, timestamp) {
     <div class="buzz-name">${name}</div>
     <div class="buzz-ts">Timestamp: ${timestamp} ms</div>
   `;
-
   setJudgeEnabled(true);
   toast(`${name} buzzed in!`, "info");
 }
@@ -803,6 +779,7 @@ function clearBuzz() {
   roundWinner = null;
   judged      = false;
   const el    = document.getElementById("buzz-result");
+  if (!el) return;
   el.className = "buzz-result idle";
   el.innerHTML = `<div class="buzz-idle-text">⚡ Waiting for a buzz-in…</div>`;
   setJudgeEnabled(false);
@@ -813,15 +790,17 @@ function setJudgeEnabled(on) {
   document.getElementById("btn-wrong").disabled   = !on;
 }
 
-function revealAnswer(correct) {
+function revealAnswer() {
+  if (serverCorrectIndex === null) return;
+  const opts = ["A","B","C","D"];
+  const correct = opts[serverCorrectIndex];
   document.querySelectorAll(".ans-btn").forEach(b => {
-    if (b.dataset.opt === correct)  b.classList.add("correct");
-    else                            b.classList.add("wrong");
+    b.classList.add(b.dataset.opt === correct ? "correct" : "wrong");
   });
 }
 
 // ─────────────────────────────────────────────────────────────
-// LEADERBOARD RENDER
+// LEADERBOARD
 // ─────────────────────────────────────────────────────────────
 function renderLeaderboard() {
   const board = document.getElementById("leaderboard");
@@ -829,10 +808,7 @@ function renderLeaderboard() {
     .map(([id, p]) => ({ id, name: p.name || `Buzzer ${id}`, score: p.score }))
     .sort((a, b) => b.score - a.score);
 
-  if (!rows.length) {
-    board.innerHTML = `<div class="lb-empty">No players yet</div>`;
-    return;
-  }
+  if (!rows.length) { board.innerHTML = `<div class="lb-empty">No players yet</div>`; return; }
 
   const medals = ["🥇","🥈","🥉"];
   board.innerHTML = rows.map((r, i) => `
@@ -858,18 +834,11 @@ document.getElementById("room-input").addEventListener("keydown", e => {
   if (e.key === "Enter") document.getElementById("btn-connect").click();
 });
 
-document.getElementById("btn-start").addEventListener("click", () => {
-  currentQ = 0;
-  showPage("page-game");
-  loadQuestion(0);
-  renderLeaderboard();
-});
-
 document.getElementById("btn-correct").addEventListener("click", () => {
   if (!roundWinner || judged) return;
   judged = true;
   players[roundWinner].score++;
-  revealAnswer(QUESTIONS[currentQ].ans);
+  revealAnswer();
   renderLeaderboard();
   setJudgeEnabled(false);
   toast(`+1 point for ${playerName(roundWinner)}!`, "success");
@@ -878,22 +847,18 @@ document.getElementById("btn-correct").addEventListener("click", () => {
 document.getElementById("btn-wrong").addEventListener("click", () => {
   if (!roundWinner || judged) return;
   judged = true;
-  revealAnswer(QUESTIONS[currentQ].ans);
+  revealAnswer();
   setJudgeEnabled(false);
   toast("Wrong answer — no points awarded", "warn");
 });
 
 document.getElementById("btn-next").addEventListener("click", () => {
-  if (currentQ < QUESTIONS.length - 1) {
-    currentQ++;
-    loadQuestion(currentQ);
-  } else {
-    toast("That was the last question!", "info");
-  }
+  send({ type: "next_question" });
 });
 
 document.getElementById("btn-exit").addEventListener("click", () => {
   if (confirm("End the game and return to the lobby?")) {
+    stopCountdown();
     showPage("page-lobby");
     clearBuzz();
   }
